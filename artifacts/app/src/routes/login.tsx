@@ -264,7 +264,7 @@ function LoginPage() {
       {/* ── Main ── */}
       <main className="flex-grow flex flex-col lg:flex-row relative">
         {/* Left — Form */}
-        <section className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-10 z-10 relative">
+        <section className="w-full lg:w-1/2 flex items-start justify-center p-6 lg:p-10 pt-12 lg:pt-12 z-10 relative">
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <div
               className="absolute -top-48 -right-48 w-96 h-96 rounded-full blur-[120px]"
