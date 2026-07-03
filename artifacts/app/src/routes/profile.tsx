@@ -28,6 +28,7 @@ import {
   Users,
   Plus,
   X,
+  Check,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -347,6 +348,10 @@ function ProfilePage() {
   const [editBio, setEditBio] = useState("");
   const [editLinks, setEditLinks] = useState<ProfileLink[]>([]);
   const [editSkills, setEditSkills] = useState<string[]>([]);
+  // Per-section edit flags (independent of avatar/banner global edit mode)
+  const [editingAbout, setEditingAbout] = useState(false);
+  const [editingLinks, setEditingLinks] = useState(false);
+  const [editingSkills, setEditingSkills] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -419,14 +424,6 @@ function ProfilePage() {
         setBannerUrl(url);
         await supabase.from("profiles").update({ banner_url: url }).eq("id", user.id);
       }
-      // Save bio, links, skills
-      await supabase.from("profiles").update({ bio: editBio || null }).eq("id", user.id);
-      await supabase.auth.updateUser({
-        data: {
-          links: editLinks.filter((l) => l.url.trim()).map(({ label, url }) => ({ label: label.trim(), url: url.trim() })),
-          skills: editSkills.map((s) => s.trim()).filter(Boolean),
-        },
-      });
       await refreshProfile();
       succeeded = true;
     } catch (e: any) {
@@ -441,16 +438,60 @@ function ProfilePage() {
     if (succeeded) setIsEditing(false);
   }
 
-  // Discard local previews on Cancel
+  // Discard local previews on Cancel (avatar/banner only)
   function handleCancelEdit() {
     if (pendingAvatarPreview) URL.revokeObjectURL(pendingAvatarPreview);
     if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
     setPendingAvatarBlob(null); setPendingAvatarPreview(null);
     setPendingBannerBlob(null); setPendingBannerPreview(null);
-    setEditBio("");
-    setEditLinks([]);
-    setEditSkills([]);
     setIsEditing(false);
+  }
+
+  // Per-section save handlers
+  async function handleSaveAbout() {
+    if (!user) { setEditingAbout(false); return; }
+    setSaving(true); setUploadErr(null);
+    try {
+      const { error } = await supabase.from("profiles").update({ bio: editBio || null }).eq("id", user.id);
+      if (error) throw error;
+      await refreshProfile();
+      setEditingAbout(false);
+    } catch (e: any) {
+      setUploadErr(e?.message ?? "Save failed — please try again.");
+    }
+    setSaving(false);
+  }
+
+  async function handleSaveLinks() {
+    if (!user) { setEditingLinks(false); return; }
+    setSaving(true); setUploadErr(null);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { links: editLinks.filter((l) => l.url.trim()).map(({ label, url }) => ({ label: label.trim(), url: url.trim() })) },
+      });
+      if (error) throw error;
+      await refreshProfile();
+      setEditingLinks(false);
+    } catch (e: any) {
+      setUploadErr(e?.message ?? "Save failed — please try again.");
+    }
+    setSaving(false);
+  }
+
+  async function handleSaveSkills() {
+    if (!user) { setEditingSkills(false); return; }
+    setSaving(true); setUploadErr(null);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { skills: editSkills.map((s) => s.trim()).filter(Boolean) },
+      });
+      if (error) throw error;
+      await refreshProfile();
+      setEditingSkills(false);
+    } catch (e: any) {
+      setUploadErr(e?.message ?? "Save failed — please try again.");
+    }
+    setSaving(false);
   }
 
   const fullName =
@@ -642,17 +683,7 @@ function ProfilePage() {
                 </>
               ) : (
                 <button
-                  onClick={() => {
-                    setEditBio(profile?.bio ?? "");
-                    const savedLinks = user?.user_metadata?.links;
-                    setEditLinks(
-                      (Array.isArray(savedLinks) ? savedLinks as { label: string; url: string }[] : [])
-                        .map((l) => ({ ...l, id: crypto.randomUUID() }))
-                    );
-                    const savedSkills = user?.user_metadata?.skills;
-                    setEditSkills(Array.isArray(savedSkills) ? savedSkills as string[] : []);
-                    setIsEditing(true);
-                  }}
+                  onClick={() => { setIsEditing(true); }}
                   className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3.5 py-1.5 text-sm font-medium hover:bg-surface-2"
                 >
                   <Edit3 className="h-3.5 w-3.5" /> Edit Profile
@@ -700,8 +731,22 @@ function ProfilePage() {
 
           {/* Links */}
           <section className="rounded-2xl border border-border/60 bg-surface p-5">
-            <h3 className="mb-3 font-display text-base font-semibold">Links</h3>
-            {isEditing ? (
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-display text-base font-semibold">Links</h3>
+              <button
+                onClick={editingLinks ? handleSaveLinks : () => {
+                  const savedLinks = user?.user_metadata?.links;
+                  setEditLinks((Array.isArray(savedLinks) ? savedLinks as { label: string; url: string }[] : []).map((l) => ({ ...l, id: crypto.randomUUID() })));
+                  setEditingLinks(true);
+                }}
+                disabled={saving}
+                title={editingLinks ? "Save" : "Edit links"}
+                className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40"
+              >
+                {editingLinks ? <Check className="h-3.5 w-3.5 text-brand-teal" /> : <Edit3 className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+            {editingLinks ? (
               <div className="space-y-2">
                 {editLinks.map((link) => (
                   <div key={link.id} className="flex gap-2 items-center">
@@ -766,8 +811,22 @@ function ProfilePage() {
 
           {/* Skills */}
           <section className="rounded-2xl border border-border/60 bg-surface p-5">
-            <h3 className="mb-3 font-display text-base font-semibold">Skills & Interests</h3>
-            {isEditing ? (
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-display text-base font-semibold">Skills & Interests</h3>
+              <button
+                onClick={editingSkills ? handleSaveSkills : () => {
+                  const savedSkills = user?.user_metadata?.skills;
+                  setEditSkills(Array.isArray(savedSkills) ? savedSkills as string[] : []);
+                  setEditingSkills(true);
+                }}
+                disabled={saving}
+                title={editingSkills ? "Save" : "Edit skills"}
+                className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40"
+              >
+                {editingSkills ? <Check className="h-3.5 w-3.5 text-brand-teal" /> : <Edit3 className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+            {editingSkills ? (
               <div className="space-y-3">
                 {/* Current skills with remove buttons */}
                 {editSkills.length > 0 && (
@@ -874,8 +933,18 @@ function ProfilePage() {
         {/* Right */}
         <div className="space-y-6">
           <section className="rounded-2xl border border-border/60 bg-surface p-6">
-            <h3 className="mb-2 font-display text-lg font-semibold">About</h3>
-            {isEditing ? (
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-display text-lg font-semibold">About</h3>
+              <button
+                onClick={editingAbout ? handleSaveAbout : () => { setEditBio(profile?.bio ?? ""); setEditingAbout(true); }}
+                disabled={saving}
+                title={editingAbout ? "Save" : "Edit about"}
+                className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40"
+              >
+                {editingAbout ? <Check className="h-3.5 w-3.5 text-brand-teal" /> : <Edit3 className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+            {editingAbout ? (
               <textarea
                 value={editBio}
                 onChange={(e) => setEditBio(e.target.value)}
