@@ -385,21 +385,6 @@ function ProfilePage() {
                 <Shield className="h-3 w-3" /> Verified
               </span>
             </div>
-            {username && (
-              <p className="flex items-center gap-1 text-sm font-medium mt-0.5" style={{ color: "#a078ff" }}>
-                <AtSign className="h-3.5 w-3.5" />{username}
-              </p>
-            )}
-            <p className="flex items-center gap-1.5 text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.72)" }}>
-              <span>Community Member</span>
-              <span className="opacity-50">·</span>
-              <span>Joined {joinMonth} {joinYear}</span>
-            </p>
-            {location && (
-              <p className="flex items-center gap-1 text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.72)" }}>
-                <MapPin className="h-3 w-3 shrink-0" />{location}
-              </p>
-            )}
           </div>
           {isEditing && (
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(0,0,0,0.35)" }}>
@@ -442,8 +427,27 @@ function ProfilePage() {
             )}
           </div>
 
-          {/* Buttons right-aligned, vertically centered in the bar */}
-          <div className="flex items-center justify-end gap-4 min-h-[5rem]">
+          {/* Info left + buttons right, vertically centered, offset past avatar */}
+          <div className="flex items-center justify-between gap-4 min-h-[5rem]" style={{ marginLeft: "calc(1.5rem + 8rem + 1rem)" }}>
+            {/* Left: user info */}
+            <div className="flex flex-col gap-0.5">
+              {username && (
+                <p className="flex items-center gap-1 text-sm font-medium" style={{ color: "#a078ff" }}>
+                  <AtSign className="h-3.5 w-3.5" />{username}
+                </p>
+              )}
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span>Community Member</span>
+                <span className="opacity-40">·</span>
+                <span>Joined {joinMonth} {joinYear}</span>
+              </p>
+              {location && (
+                <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                  <MapPin className="h-3 w-3 shrink-0" />{location}
+                </p>
+              )}
+            </div>
+            {/* Right: buttons */}
             <div className="flex gap-2 shrink-0">
               {isEditing ? (
                 <>
