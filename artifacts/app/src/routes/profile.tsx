@@ -374,7 +374,18 @@ function ProfilePage() {
           }
           <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_100%_0%,oklch(0.72_0.13_185/0.35),transparent_60%)]" />
           {/* Gradient fade at the bottom so name is legible */}
-          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
+          {/* Name sits in the banner just above the bar, cleared of the avatar */}
+          <div className="absolute bottom-0 pb-3 pointer-events-none z-0" style={{ left: "calc(1.5rem + 8rem + 1rem)" }}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white leading-tight drop-shadow">
+                {fullName}
+              </h1>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-teal/20 border border-brand-teal/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-teal">
+                <Shield className="h-3 w-3" /> Verified
+              </span>
+            </div>
+          </div>
           {isEditing && (
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(0,0,0,0.35)" }}>
               <div className="flex items-center gap-2 text-white text-sm font-medium">
@@ -384,11 +395,11 @@ function ProfilePage() {
           )}
         </div>
 
-        {/* Bar — avatar overlaps banner, info left, buttons right */}
-        <div className="relative rounded-b-3xl overflow-visible px-6 py-4 md:px-8 md:py-5 min-h-[5.5rem]" style={{ background: "var(--background)" }}>
-          {/* Avatar — absolutely left, protrudes into banner */}
+        {/* Bar — avatar straddles 50/50, info left, buttons right, all vertically centered */}
+        <div className="relative rounded-b-3xl overflow-visible px-6 py-0 md:px-8 min-h-[5rem]" style={{ background: "var(--background)" }}>
+          {/* Avatar — h-32 = 128px, -top-16 = 64px so exactly half in banner / half in bar */}
           <div
-            className={`absolute left-6 md:left-8 -top-14 md:-top-16 z-10 ${isEditing ? "group cursor-pointer" : ""}`}
+            className={`absolute left-6 md:left-8 -top-16 z-10 ${isEditing ? "group cursor-pointer" : ""}`}
             onClick={() => isEditing && avatarInputRef.current?.click()}
           >
             {(pendingAvatarPreview ?? avatarUrl)
@@ -396,12 +407,12 @@ function ProfilePage() {
                 <img
                   src={pendingAvatarPreview ?? avatarUrl!}
                   alt={fullName}
-                  className="h-24 w-24 md:h-28 md:w-28 rounded-3xl border-4 object-cover shadow-glow-purple"
+                  className="h-32 w-32 rounded-3xl border-4 object-cover shadow-glow-purple"
                   style={{ borderColor: "var(--background)" }}
                 />
               )
               : (
-                <span className="grid h-24 w-24 place-items-center rounded-3xl border-4 border-background bg-gradient-brand font-display text-3xl font-bold text-white shadow-glow-purple md:h-28 md:w-28">
+                <span className="grid h-32 w-32 place-items-center rounded-3xl border-4 border-background bg-gradient-brand font-display text-4xl font-bold text-white shadow-glow-purple">
                   {initial}
                 </span>
               )
@@ -416,18 +427,10 @@ function ProfilePage() {
             )}
           </div>
 
-          {/* Content: name+info left, buttons right — offset by avatar width */}
-          <div className="ml-32 md:ml-36 flex items-start justify-between gap-4">
-            {/* Left: name + meta */}
+          {/* Content: info left, buttons right — offset past avatar, full bar height, items centered */}
+          <div className="flex items-center justify-between gap-4 min-h-[5rem]" style={{ marginLeft: "calc(1.5rem + 8rem + 1rem)" }}>
+            {/* Left: username + community info */}
             <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight leading-tight" style={{ color: "#dae2fd" }}>
-                  {fullName}
-                </h1>
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-teal/20 border border-brand-teal/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-teal">
-                  <Shield className="h-3 w-3" /> Verified
-                </span>
-              </div>
               {username && (
                 <p className="flex items-center gap-1 text-sm font-medium" style={{ color: "#a078ff" }}>
                   <AtSign className="h-3.5 w-3.5" />{username}
@@ -445,8 +448,8 @@ function ProfilePage() {
               )}
             </div>
 
-            {/* Right: buttons */}
-            <div className="flex gap-2 shrink-0 mt-1">
+            {/* Right: buttons — vertically centered by parent items-center */}
+            <div className="flex gap-2 shrink-0">
               {isEditing ? (
                 <>
                   <button
