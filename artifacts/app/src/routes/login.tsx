@@ -781,14 +781,14 @@ function LoginPage() {
           </div>
           <div className="flex flex-wrap gap-8">
             {["Privacy Policy", "Terms of Service", "Help Center"].map((l) => (
-              <Link
+              <a
                 key={l}
-                to={`/${l.toLowerCase().replace(/ /g, "-")}` as any}
+                href={`/${l.toLowerCase().replace(/ /g, "-")}`}
                 className="text-xs transition-colors hover:text-white"
                 style={{ color: "#cbc3d7", ...mono }}
               >
                 {l}
-              </Link>
+              </a>
             ))}
           </div>
         </div>
