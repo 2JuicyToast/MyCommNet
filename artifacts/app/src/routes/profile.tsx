@@ -375,8 +375,8 @@ function ProfilePage() {
           <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_100%_0%,oklch(0.72_0.13_185/0.35),transparent_60%)]" />
           {/* Gradient fade at the bottom so name is legible */}
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
-          {/* Name sits in the banner just above the bar, cleared of the avatar */}
-          <div className="absolute bottom-0 pb-3 pointer-events-none z-0" style={{ left: "calc(1.5rem + 8rem + 1rem)" }}>
+          {/* Name + user info sits in the banner just above the bar, cleared of the avatar */}
+          <div className="absolute bottom-0 pb-4 pointer-events-none z-0" style={{ left: "calc(1.5rem + 8rem + 1rem)" }}>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white leading-tight drop-shadow">
                 {fullName}
@@ -385,6 +385,21 @@ function ProfilePage() {
                 <Shield className="h-3 w-3" /> Verified
               </span>
             </div>
+            {username && (
+              <p className="flex items-center gap-1 text-sm font-medium mt-0.5" style={{ color: "#a078ff" }}>
+                <AtSign className="h-3.5 w-3.5" />{username}
+              </p>
+            )}
+            <p className="flex items-center gap-1.5 text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.72)" }}>
+              <span>Community Member</span>
+              <span className="opacity-50">·</span>
+              <span>Joined {joinMonth} {joinYear}</span>
+            </p>
+            {location && (
+              <p className="flex items-center gap-1 text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.72)" }}>
+                <MapPin className="h-3 w-3 shrink-0" />{location}
+              </p>
+            )}
           </div>
           {isEditing && (
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(0,0,0,0.35)" }}>
@@ -427,28 +442,8 @@ function ProfilePage() {
             )}
           </div>
 
-          {/* Content: info left, buttons right — offset past avatar, full bar height, items centered */}
-          <div className="flex items-center justify-between gap-4 min-h-[5rem]" style={{ marginLeft: "calc(1.5rem + 8rem + 1rem)" }}>
-            {/* Left: username + community info */}
-            <div className="flex flex-col gap-0.5">
-              {username && (
-                <p className="flex items-center gap-1 text-sm font-medium" style={{ color: "#a078ff" }}>
-                  <AtSign className="h-3.5 w-3.5" />{username}
-                </p>
-              )}
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span>Community Member</span>
-                <span className="opacity-40">·</span>
-                <span>Joined {joinMonth} {joinYear}</span>
-              </p>
-              {location && (
-                <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                  <MapPin className="h-3 w-3 shrink-0" />{location}
-                </p>
-              )}
-            </div>
-
-            {/* Right: buttons — vertically centered by parent items-center */}
+          {/* Buttons right-aligned, vertically centered in the bar */}
+          <div className="flex items-center justify-end gap-4 min-h-[5rem]">
             <div className="flex gap-2 shrink-0">
               {isEditing ? (
                 <>
