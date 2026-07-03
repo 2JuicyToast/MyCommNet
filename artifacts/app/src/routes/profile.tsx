@@ -26,6 +26,8 @@ import {
   ChevronUp,
   AtSign,
   Users,
+  Plus,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -39,7 +41,46 @@ export const Route = createFileRoute("/profile")({
   component: ProfilePage,
 });
 
-const skills = ["Community Outreach", "Public Speaking", "Tutoring", "Event Planning", "JavaScript", "Design"];
+// ── Skills data ──────────────────────────────────────────────────────────────
+
+const SKILL_PRESETS = [
+  "Community Outreach", "Public Speaking", "Tutoring", "Event Planning",
+  "Leadership", "Project Management", "Social Media", "Graphic Design",
+  "Data Analysis", "Writing", "Research", "Mentoring",
+  "Web Development", "Marketing", "Photography", "Advocacy",
+  "Teaching", "Coding", "Customer Service", "Facilitation",
+];
+
+const SKILL_SUGGESTIONS = [
+  ...SKILL_PRESETS,
+  "JavaScript", "Python", "React", "Design", "UI/UX",
+  "Video Editing", "Content Creation", "Grant Writing", "Fundraising",
+  "Networking", "Public Policy", "Healthcare", "Nursing", "Finance",
+  "Accounting", "Legal Research", "Translation", "Sign Language",
+  "Carpentry", "Electrical Work", "Plumbing", "Landscaping",
+  "Cooking", "Baking", "Childcare", "Elder Care", "Crisis Counseling",
+  "Mental Health Support", "Peer Support", "Life Coaching",
+  "Fitness Training", "Yoga", "Sports Coaching", "Music",
+  "Art", "Theater", "Dance", "Drawing", "Painting", "Sculpting",
+  "3D Printing", "Robotics", "Electronics", "Cybersecurity",
+  "Data Science", "Machine Learning", "Mobile Development",
+];
+
+// ── Link helpers ─────────────────────────────────────────────────────────────
+
+type ProfileLink = { id: string; label: string; url: string };
+
+function getLinkIcon(url: string): React.ComponentType<{ className?: string }> {
+  try {
+    const u = url.toLowerCase();
+    if (u.includes("linkedin.com")) return Linkedin;
+    if (u.includes("github.com")) return Github;
+    if (/\.(pdf|doc|docx|ppt|pptx)(\?|$)/.test(u)) return LinkIcon;
+    return Globe;
+  } catch {
+    return Globe;
+  }
+}
 const goals = [
   { label: "Earn 50 verified volunteer hours", progress: 72 },
   { label: "Complete digital skills bootcamp", progress: 45 },
@@ -185,6 +226,108 @@ function SurveySummary({ userId }: { userId: string }) {
   );
 }
 
+// ── Skills tag input ─────────────────────────────────────────────────────────
+
+function ProfileTagInput({
+  suggestions,
+  existingValues,
+  onAdd,
+}: {
+  suggestions: string[];
+  existingValues: string[];
+  onAdd: (value: string) => void;
+}) {
+  const [input, setInput] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const existing = existingValues.map((v) => v.toLowerCase());
+  const filtered = input.trim().length > 0
+    ? suggestions.filter((s) => s.toLowerCase().includes(input.toLowerCase()) && !existing.includes(s.toLowerCase())).slice(0, 6)
+    : [];
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function add(label: string) {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    onAdd(trimmed);
+    setInput("");
+    setOpen(false);
+  }
+
+  function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") { e.preventDefault(); if (filtered.length > 0) add(filtered[0]); else if (input.trim()) add(input.trim()); }
+    if (e.key === "Escape") setOpen(false);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => { setInput(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKey}
+          placeholder="Add a skill or interest…"
+          className="w-full h-9 pl-3 pr-16 rounded-lg text-xs"
+          style={{ background: "#0b1326", border: "1px solid #1e293b", color: "#dae2fd", outline: "none" }}
+        />
+        {input && (
+          <button
+            type="button"
+            onClick={() => add(input.trim())}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-0.5 text-[11px] font-semibold"
+            style={{ background: "rgba(160,120,255,0.2)", color: "#a078ff" }}
+          >
+            Add
+          </button>
+        )}
+      </div>
+      {open && (filtered.length > 0 || (input.trim() && !existing.includes(input.trim().toLowerCase()))) && (
+        <ul
+          className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl py-1 shadow-2xl"
+          style={{ background: "rgba(15,23,42,0.97)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          {filtered.map((s) => (
+            <li key={s}>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); add(s); }}
+                className="w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/5"
+                style={{ color: "#cbc3d7" }}
+              >
+                {s}
+              </button>
+            </li>
+          ))}
+          {input.trim() && !filtered.some((s) => s.toLowerCase() === input.trim().toLowerCase()) && !existing.includes(input.trim().toLowerCase()) && (
+            <li>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); add(input.trim()); }}
+                className="w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/5"
+                style={{ color: "#4fdbc8" }}
+              >
+                + Add "{input.trim()}"
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ── Profile page ─────────────────────────────────────────────────────────────
+
 function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
   const [userLocation, setUserLocation] = useState<string>("");
@@ -200,6 +343,10 @@ function ProfilePage() {
   const [pendingAvatarPreview, setPendingAvatarPreview] = useState<string | null>(null);
   const [pendingBannerBlob, setPendingBannerBlob] = useState<Blob | null>(null);
   const [pendingBannerPreview, setPendingBannerPreview] = useState<string | null>(null);
+  // Edit-mode fields
+  const [editBio, setEditBio] = useState("");
+  const [editLinks, setEditLinks] = useState<ProfileLink[]>([]);
+  const [editSkills, setEditSkills] = useState<string[]>([]);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -252,6 +399,7 @@ function ProfilePage() {
     if (!user) { setIsEditing(false); return; }
     setSaving(true);
     setUploadErr(null);
+    let succeeded = false;
     try {
       if (pendingAvatarBlob) {
         const path = `${user.id}/avatar-${Date.now()}.jpg`;
@@ -271,16 +419,26 @@ function ProfilePage() {
         setBannerUrl(url);
         await supabase.from("profiles").update({ banner_url: url }).eq("id", user.id);
       }
-      if (pendingAvatarBlob || pendingBannerBlob) await refreshProfile();
+      // Save bio, links, skills
+      await supabase.from("profiles").update({ bio: editBio || null }).eq("id", user.id);
+      await supabase.auth.updateUser({
+        data: {
+          links: editLinks.filter((l) => l.url.trim()).map(({ label, url }) => ({ label: label.trim(), url: url.trim() })),
+          skills: editSkills.map((s) => s.trim()).filter(Boolean),
+        },
+      });
+      await refreshProfile();
+      succeeded = true;
     } catch (e: any) {
-      setUploadErr(e?.message ?? "Upload failed. Check your Supabase Storage buckets.");
+      setUploadErr(e?.message ?? "Save failed — please try again.");
     }
+    // Always clean up blob previews; only close editor on success
     if (pendingAvatarPreview) URL.revokeObjectURL(pendingAvatarPreview);
     if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
     setPendingAvatarBlob(null); setPendingAvatarPreview(null);
     setPendingBannerBlob(null); setPendingBannerPreview(null);
     setSaving(false);
-    setIsEditing(false);
+    if (succeeded) setIsEditing(false);
   }
 
   // Discard local previews on Cancel
@@ -289,6 +447,9 @@ function ProfilePage() {
     if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
     setPendingAvatarBlob(null); setPendingAvatarPreview(null);
     setPendingBannerBlob(null); setPendingBannerPreview(null);
+    setEditBio("");
+    setEditLinks([]);
+    setEditSkills([]);
     setIsEditing(false);
   }
 
@@ -315,6 +476,12 @@ function ProfilePage() {
   const bio =
     profile?.bio ??
     "Atlanta-based community member passionate about closing local access gaps to Wi-Fi, mentorship, and first jobs. Always looking for new volunteer opportunities, study spaces, and friendly mentors who've walked the road before.";
+
+  const rawLinks = user?.user_metadata?.links;
+  const displayLinks: { label: string; url: string }[] =
+    (Array.isArray(rawLinks) ? rawLinks as { label: string; url: string }[] : []).filter((l) => l?.url?.trim());
+  const rawSkills = user?.user_metadata?.skills;
+  const displaySkills: string[] = Array.isArray(rawSkills) ? rawSkills as string[] : [];
 
   return (
     <AppShell>
@@ -475,7 +642,17 @@ function ProfilePage() {
                 </>
               ) : (
                 <button
-                  onClick={() => setIsEditing(true)}
+                  onClick={() => {
+                    setEditBio(profile?.bio ?? "");
+                    const savedLinks = user?.user_metadata?.links;
+                    setEditLinks(
+                      (Array.isArray(savedLinks) ? savedLinks as { label: string; url: string }[] : [])
+                        .map((l) => ({ ...l, id: crypto.randomUUID() }))
+                    );
+                    const savedSkills = user?.user_metadata?.skills;
+                    setEditSkills(Array.isArray(savedSkills) ? savedSkills as string[] : []);
+                    setIsEditing(true);
+                  }}
                   className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3.5 py-1.5 text-sm font-medium hover:bg-surface-2"
                 >
                   <Edit3 className="h-3.5 w-3.5" /> Edit Profile
@@ -524,34 +701,130 @@ function ProfilePage() {
           {/* Links */}
           <section className="rounded-2xl border border-border/60 bg-surface p-5">
             <h3 className="mb-3 font-display text-base font-semibold">Links</h3>
-            <ul className="space-y-2 text-sm">
-              {[
-                { icon: Linkedin, label: "LinkedIn" },
-                { icon: Github, label: "GitHub" },
-                { icon: Globe, label: "Personal site" },
-                { icon: LinkIcon, label: "Portfolio (PDF)" },
-              ].map((l) => {
-                const Icon = l.icon;
-                return (
-                  <li key={l.label} className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-muted-foreground hover:bg-surface-2 hover:text-foreground">
-                    <Icon className="h-4 w-4" />
-                    {l.label}
-                  </li>
-                );
-              })}
-            </ul>
+            {isEditing ? (
+              <div className="space-y-2">
+                {editLinks.map((link) => (
+                  <div key={link.id} className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={link.label}
+                      onChange={(e) => setEditLinks((prev) => prev.map((l) => l.id === link.id ? { ...l, label: e.target.value } : l))}
+                      placeholder="Label"
+                      className="w-28 h-8 px-2 rounded-lg text-xs shrink-0"
+                      style={{ background: "#0b1326", border: "1px solid #1e293b", color: "#dae2fd", outline: "none" }}
+                    />
+                    <input
+                      type="url"
+                      value={link.url}
+                      onChange={(e) => setEditLinks((prev) => prev.map((l) => l.id === link.id ? { ...l, url: e.target.value } : l))}
+                      placeholder="https://…"
+                      className="flex-1 min-w-0 h-8 px-2 rounded-lg text-xs"
+                      style={{ background: "#0b1326", border: "1px solid #1e293b", color: "#dae2fd", outline: "none" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditLinks((prev) => prev.filter((l) => l.id !== link.id))}
+                      className="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg hover:bg-surface-2 transition-colors"
+                      style={{ color: "#958ea0" }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setEditLinks((prev) => [...prev, { id: crypto.randomUUID(), label: "", url: "" }])}
+                  className="flex items-center gap-1.5 text-xs mt-1 px-2 py-1.5 rounded-lg hover:bg-surface-2 transition-colors"
+                  style={{ color: "#a078ff" }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add link
+                </button>
+              </div>
+            ) : displayLinks.length > 0 ? (
+              <ul className="space-y-2 text-sm">
+                {displayLinks.map((l) => {
+                  const Icon = getLinkIcon(l.url);
+                  return (
+                    <li key={l.url + l.label}>
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-muted-foreground hover:bg-surface-2 hover:text-foreground transition-colors"
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{l.label || l.url}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-xs text-muted-foreground">No links added yet.</p>
+            )}
           </section>
 
           {/* Skills */}
           <section className="rounded-2xl border border-border/60 bg-surface p-5">
             <h3 className="mb-3 font-display text-base font-semibold">Skills & Interests</h3>
-            <div className="flex flex-wrap gap-2">
-              {skills.map((s) => (
-                <span key={s} className="rounded-full bg-gradient-brand-soft px-3 py-1 text-xs font-medium text-foreground ring-1 ring-brand-purple/30">
-                  {s}
-                </span>
-              ))}
-            </div>
+            {isEditing ? (
+              <div className="space-y-3">
+                {/* Current skills with remove buttons */}
+                {editSkills.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {editSkills.map((s) => (
+                      <span
+                        key={s}
+                        className="inline-flex items-center gap-1 rounded-full bg-gradient-brand-soft px-3 py-1 text-xs font-medium text-foreground ring-1 ring-brand-purple/30"
+                      >
+                        {s}
+                        <button
+                          type="button"
+                          onClick={() => setEditSkills((prev) => prev.filter((x) => x !== s))}
+                          className="ml-0.5 grid h-3.5 w-3.5 place-items-center rounded-full hover:bg-white/20 transition-colors"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {/* Typeahead input */}
+                <ProfileTagInput
+                  suggestions={SKILL_SUGGESTIONS}
+                  existingValues={editSkills}
+                  onAdd={(v) => setEditSkills((prev) => prev.some((s) => s.toLowerCase() === v.toLowerCase()) ? prev : [...prev, v])}
+                />
+                {/* Suggestion chips */}
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "#958ea0" }}>Suggestions</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SKILL_PRESETS.filter((s) => !editSkills.includes(s)).slice(0, 14).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setEditSkills((prev) => [...prev, s])}
+                        className="rounded-full px-2.5 py-0.5 text-xs font-medium transition-all hover:opacity-80 active:scale-95"
+                        style={{ background: "rgba(160,120,255,0.08)", color: "#cbc3d7", border: "1px solid #1e293b" }}
+                      >
+                        + {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {displaySkills.length > 0
+                  ? displaySkills.map((s) => (
+                    <span key={s} className="rounded-full bg-gradient-brand-soft px-3 py-1 text-xs font-medium text-foreground ring-1 ring-brand-purple/30">
+                      {s}
+                    </span>
+                  ))
+                  : <p className="text-xs text-muted-foreground">No skills added yet.</p>
+                }
+              </div>
+            )}
           </section>
 
           {/* Saved */}
@@ -602,7 +875,18 @@ function ProfilePage() {
         <div className="space-y-6">
           <section className="rounded-2xl border border-border/60 bg-surface p-6">
             <h3 className="mb-2 font-display text-lg font-semibold">About</h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">{bio}</p>
+            {isEditing ? (
+              <textarea
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                rows={5}
+                placeholder="Tell your community about yourself…"
+                className="w-full rounded-lg text-sm p-3 resize-none leading-relaxed"
+                style={{ background: "#0b1326", border: "1px solid #1e293b", color: "#dae2fd", outline: "none" }}
+              />
+            ) : (
+              <p className="text-sm leading-relaxed text-muted-foreground">{bio}</p>
+            )}
           </section>
 
           {/* Stats */}
