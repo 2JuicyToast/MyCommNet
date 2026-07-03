@@ -84,14 +84,10 @@ export function PublicFooter() {
           </p>
         </div>
         <div className="flex flex-wrap gap-6">
-          {[
-            { label: "Privacy Policy", to: "/privacy-policy" },
-            { label: "Terms of Service", to: "/terms-of-service" },
-            { label: "Help Center", to: "/help-center" },
-          ].map((l) => (
+          {["Privacy Policy", "Terms of Service", "Help Center"].map((label) => (
             <a
-              key={l.label}
-              href={l.to}
+              key={label}
+              href="/404"
               style={{
                 color: "#cbc3d7",
                 ...mono,
@@ -99,14 +95,14 @@ export function PublicFooter() {
                 cursor: "pointer",
                 fontSize: "12px",
                 whiteSpace: "nowrap",
-                padding: "6px 0",
+                padding: "8px 4px",
                 textDecoration: "underline",
                 textUnderlineOffset: "3px",
               }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}
             >
-              {l.label}
+              {label}
             </a>
           ))}
         </div>

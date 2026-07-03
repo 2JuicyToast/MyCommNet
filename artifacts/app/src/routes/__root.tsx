@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { Rocket, Search } from "lucide-react";
+import { PublicFooter } from "@/components/PublicStars";
 
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "../hooks/useAuth";
@@ -199,48 +200,7 @@ function NotFoundComponent() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer
-        className="py-8 px-6 mt-auto"
-        style={{ borderTop: "1px solid #1e293b", backgroundColor: "#0f172a" }}
-      >
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 max-w-7xl mx-auto">
-          <div>
-            <p
-              className="font-bold text-base"
-              style={{ color: "#dae2fd", fontFamily: "'Hanken Grotesk', sans-serif" }}
-            >
-              MyCommNet
-            </p>
-            <p className="text-sm mt-0.5" style={{ color: "#cbc3d7" }}>
-              Stay Connected
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-6">
-            {["Privacy Policy", "Terms of Service", "Help Center"].map((l) => (
-              <a
-                key={l}
-                href={`/${l.toLowerCase().replace(/ /g, "-")}`}
-                style={{
-                  color: "#cbc3d7",
-                  ...mono,
-                  display: "inline-block",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  whiteSpace: "nowrap",
-                  padding: "6px 0",
-                  textDecoration: "underline",
-                  textUnderlineOffset: "3px",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}
-              >
-                {l}
-              </a>
-            ))}
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

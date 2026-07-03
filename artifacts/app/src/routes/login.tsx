@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Mail, Lock, Eye, EyeOff, LogIn, Check, X, AtSign, RefreshCw, Users, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { PublicFooter } from "@/components/PublicStars";
 
 const logoSrc = "/logo.png";
 
@@ -762,30 +763,7 @@ function LoginPage() {
         </section>
       </main>
 
-      {/* ── Footer ── */}
-      <footer
-        className="py-8 px-6 mt-auto"
-        style={{ borderTop: "1px solid #1e293b", backgroundColor: "#0f172a" }}
-      >
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div>
-            <p
-              className="font-bold text-base"
-              style={{ color: "#dae2fd", fontFamily: "'Hanken Grotesk', sans-serif" }}
-            >
-              MyCommNet
-            </p>
-            <p className="text-sm mt-0.5" style={{ color: "#cbc3d7" }}>
-              Stay Connected
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-6">
-            <a href="/404" style={{ color: "#cbc3d7", ...mono, fontSize: "12px", whiteSpace: "nowrap", padding: "8px 4px", textDecoration: "underline", textUnderlineOffset: "3px", cursor: "pointer", display: "inline-block" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")} onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}>Privacy Policy</a>
-            <a href="/404" style={{ color: "#cbc3d7", ...mono, fontSize: "12px", whiteSpace: "nowrap", padding: "8px 4px", textDecoration: "underline", textUnderlineOffset: "3px", cursor: "pointer", display: "inline-block" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")} onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}>Terms of Service</a>
-            <a href="/404" style={{ color: "#cbc3d7", ...mono, fontSize: "12px", whiteSpace: "nowrap", padding: "8px 4px", textDecoration: "underline", textUnderlineOffset: "3px", cursor: "pointer", display: "inline-block" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")} onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}>Help Center</a>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }
