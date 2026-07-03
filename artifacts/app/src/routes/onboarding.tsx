@@ -103,6 +103,87 @@ const RESOURCE_OPTIONS = [
   { label: "Networking", value: "networking" },
 ];
 
+const ACCESS_SUGGESTIONS = [
+  "Bilingual staff / language support",
+  "Interpreter services",
+  "Sign language interpreter",
+  "Childcare available on-site",
+  "Disability accommodations",
+  "Wheelchair accessible",
+  "Quiet / low-stimulation environment",
+  "Sensory-friendly",
+  "LGBTQ+ affirming",
+  "Safe space for youth",
+  "Mental health support on-site",
+  "Veteran-friendly",
+  "Reentry / formerly incarcerated friendly",
+  "No ID required",
+  "No credit check required",
+  "Sliding scale fees",
+  "Drop-in hours (no appointment needed)",
+  "Same-day availability",
+  "Waiting area available",
+  "Private and confidential",
+  "Faith-based options",
+  "Secular (non-religious) options",
+  "Trauma-informed staff",
+  "Cultural competency",
+  "Gender-affirming services",
+  "Indigenous community services",
+  "Safe parking available",
+  "Shower / hygiene facilities",
+  "Pet-friendly",
+];
+
+const RESOURCE_SUGGESTIONS = [
+  "Legal aid",
+  "Housing assistance",
+  "Emergency shelter",
+  "Rent assistance",
+  "Utility bill help",
+  "Clothing / thrift stores",
+  "Free healthcare clinics",
+  "Dental care",
+  "Vision care / eyeglasses",
+  "Mental health services",
+  "Substance use support",
+  "Childcare services",
+  "Youth programs",
+  "Senior services",
+  "Disability services",
+  "Immigration services",
+  "Financial literacy classes",
+  "Credit building",
+  "Free bank accounts",
+  "GED / HiSET prep",
+  "College prep",
+  "Scholarships",
+  "Internships",
+  "Apprenticeships",
+  "Resume help",
+  "Interview coaching",
+  "Micro-grants",
+  "Small business support",
+  "Studio / recording space",
+  "Co-working space",
+  "3D printing / maker space",
+  "Tutoring",
+  "After-school programs",
+  "Summer camps",
+  "Sports programs",
+  "Arts & music programs",
+  "Photography or film equipment",
+  "Free gym or fitness",
+  "Peer support groups",
+  "Food pantries",
+  "Community fridges",
+  "Diaper banks",
+  "Baby supplies",
+  "Tax preparation help",
+  "Voting registration help",
+  "Prescription assistance",
+];
+
 const INTEREST_OPTIONS = [
   { label: "Cosplay", value: "cosplay" },
   { label: "Comics", value: "comics" },
@@ -508,14 +589,14 @@ function OnboardingPage() {
     setPrefs((p) => ({ ...p, [key]: p[key] === val ? null : val }));
   }
 
-  function addCustomInterest(key: "personal_interests" | "career_interests", value: string) {
+  function addCustomInterest(key: "personal_interests" | "career_interests" | "access_preferences" | "resource_interests", value: string) {
     setPrefs((p) => {
       const arr = (p[key] ?? []).filter((v) => v !== value);
       return { ...p, [key]: [...arr, value] };
     });
   }
 
-  function removeInterest(key: "personal_interests" | "career_interests", value: string) {
+  function removeInterest(key: "personal_interests" | "career_interests" | "access_preferences" | "resource_interests", value: string) {
     setPrefs((p) => ({ ...p, [key]: (p[key] ?? []).filter((v) => v !== value) }));
   }
 
@@ -944,7 +1025,9 @@ function OnboardingPage() {
         );
 
       // Step 4 — Access preferences
-      case 4:
+      case 4: {
+        const accessSelected = prefs.access_preferences ?? [];
+        const customAccess = accessSelected.filter((v) => v.startsWith("custom:"));
         return (
           <div className="space-y-3">
             <p className="text-sm mb-4" style={{ color: "#cbc3d7" }}>
@@ -955,16 +1038,34 @@ function OnboardingPage() {
                 <Chip
                   key={o.value}
                   label={o.label}
-                  selected={(prefs.access_preferences ?? []).includes(o.value)}
+                  selected={accessSelected.includes(o.value)}
                   onClick={() => toggleMulti("access_preferences", o.value)}
                 />
               ))}
+              {customAccess.map((v) => (
+                <Chip
+                  key={v}
+                  label={v.slice(7)}
+                  selected={true}
+                  onClick={() => {}}
+                  onRemove={() => removeInterest("access_preferences", v)}
+                />
+              ))}
             </div>
+            <CustomInterestInput
+              placeholder="Any other needs? (e.g. Interpreter services, Childcare…)"
+              suggestions={ACCESS_SUGGESTIONS}
+              existingValues={accessSelected}
+              onAdd={(val) => addCustomInterest("access_preferences", val)}
+            />
           </div>
         );
+      }
 
       // Step 5 — Resources
-      case 5:
+      case 5: {
+        const resourceSelected = prefs.resource_interests ?? [];
+        const customResources = resourceSelected.filter((v) => v.startsWith("custom:"));
         return (
           <div className="space-y-3">
             <p className="text-sm mb-4" style={{ color: "#cbc3d7" }}>
@@ -975,13 +1076,29 @@ function OnboardingPage() {
                 <Chip
                   key={o.value}
                   label={o.label}
-                  selected={(prefs.resource_interests ?? []).includes(o.value)}
+                  selected={resourceSelected.includes(o.value)}
                   onClick={() => toggleMulti("resource_interests", o.value)}
                 />
               ))}
+              {customResources.map((v) => (
+                <Chip
+                  key={v}
+                  label={v.slice(7)}
+                  selected={true}
+                  onClick={() => {}}
+                  onRemove={() => removeInterest("resource_interests", v)}
+                />
+              ))}
             </div>
+            <CustomInterestInput
+              placeholder="Looking for something specific? (e.g. Legal aid, Childcare…)"
+              suggestions={RESOURCE_SUGGESTIONS}
+              existingValues={resourceSelected}
+              onAdd={(val) => addCustomInterest("resource_interests", val)}
+            />
           </div>
         );
+      }
 
       // Step 6 — Interests + Career (with custom + typeahead)
       case 6: {
