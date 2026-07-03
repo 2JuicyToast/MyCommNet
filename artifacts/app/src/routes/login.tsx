@@ -780,27 +780,9 @@ function LoginPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-6">
-            {["Privacy Policy", "Terms of Service", "Help Center"].map((l) => (
-              <a
-                key={l}
-                href={`/${l.toLowerCase().replace(/ /g, "-")}`}
-                style={{
-                  color: "#cbc3d7",
-                  ...mono,
-                  display: "inline-block",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  whiteSpace: "nowrap",
-                  padding: "6px 0",
-                  textDecoration: "underline",
-                  textUnderlineOffset: "3px",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}
-              >
-                {l}
-              </a>
-            ))}
+            <a href="/404" style={{ color: "#cbc3d7", ...mono, fontSize: "12px", whiteSpace: "nowrap", padding: "8px 4px", textDecoration: "underline", textUnderlineOffset: "3px", cursor: "pointer", display: "inline-block" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")} onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}>Privacy Policy</a>
+            <a href="/404" style={{ color: "#cbc3d7", ...mono, fontSize: "12px", whiteSpace: "nowrap", padding: "8px 4px", textDecoration: "underline", textUnderlineOffset: "3px", cursor: "pointer", display: "inline-block" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")} onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}>Terms of Service</a>
+            <a href="/404" style={{ color: "#cbc3d7", ...mono, fontSize: "12px", whiteSpace: "nowrap", padding: "8px 4px", textDecoration: "underline", textUnderlineOffset: "3px", cursor: "pointer", display: "inline-block" }} onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")} onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}>Help Center</a>
           </div>
         </div>
       </footer>
