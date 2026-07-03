@@ -382,24 +382,13 @@ function ProfilePage() {
               </div>
             </div>
           )}
-          {/* Name sits at the bottom of the banner with breathing room above the bar */}
-          <div className="absolute bottom-0 left-6 md:left-8 pb-3 pointer-events-none">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white leading-tight drop-shadow">
-                {fullName}
-              </h1>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-teal/20 border border-brand-teal/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-teal">
-                <Shield className="h-3 w-3" /> Verified
-              </span>
-            </div>
-          </div>
         </div>
 
-        {/* Bar — avatar floats up, everything else centered */}
-        <div className="relative rounded-b-3xl overflow-hidden flex items-center justify-center px-6 py-4 md:px-8 md:py-5 min-h-[5.5rem]" style={{ background: "var(--background)" }}>
+        {/* Bar — avatar overlaps banner, info left, buttons right */}
+        <div className="relative rounded-b-3xl overflow-visible px-6 py-4 md:px-8 md:py-5 min-h-[5.5rem]" style={{ background: "var(--background)" }}>
           {/* Avatar — absolutely left, protrudes into banner */}
           <div
-            className={`absolute left-6 md:left-8 -top-14 md:-top-16 ${isEditing ? "group cursor-pointer" : ""}`}
+            className={`absolute left-6 md:left-8 -top-14 md:-top-16 z-10 ${isEditing ? "group cursor-pointer" : ""}`}
             onClick={() => isEditing && avatarInputRef.current?.click()}
           >
             {(pendingAvatarPreview ?? avatarUrl)
@@ -427,10 +416,18 @@ function ProfilePage() {
             )}
           </div>
 
-          {/* Centered identity + actions */}
-          <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-6">
-            {/* Meta */}
-            <div className="flex flex-col items-center gap-0.5">
+          {/* Content: name+info left, buttons right — offset by avatar width */}
+          <div className="ml-32 md:ml-36 flex items-start justify-between gap-4">
+            {/* Left: name + meta */}
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight leading-tight" style={{ color: "#dae2fd" }}>
+                  {fullName}
+                </h1>
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-teal/20 border border-brand-teal/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-teal">
+                  <Shield className="h-3 w-3" /> Verified
+                </span>
+              </div>
               {username && (
                 <p className="flex items-center gap-1 text-sm font-medium" style={{ color: "#a078ff" }}>
                   <AtSign className="h-3.5 w-3.5" />{username}
@@ -448,8 +445,8 @@ function ProfilePage() {
               )}
             </div>
 
-            {/* Buttons */}
-            <div className="flex gap-2">
+            {/* Right: buttons */}
+            <div className="flex gap-2 shrink-0 mt-1">
               {isEditing ? (
                 <>
                   <button
