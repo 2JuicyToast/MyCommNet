@@ -785,7 +785,7 @@ function LoginPage() {
                 key={l}
                 href={`/${l.toLowerCase().replace(/ /g, "-")}`}
                 className="text-xs transition-colors hover:text-white"
-                style={{ color: "#cbc3d7", ...mono }}
+                style={{ color: "#cbc3d7", ...mono, display: "inline-block", cursor: "pointer" }}
               >
                 {l}
               </a>
