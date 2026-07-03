@@ -466,9 +466,9 @@ function ProfilePage() {
     if (!user) { setEditingLinks(false); return; }
     setSaving(true); setUploadErr(null);
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: { links: editLinks.filter((l) => l.url.trim()).map(({ label, url }) => ({ label: label.trim(), url: url.trim() })) },
-      });
+      const { error } = await supabase.from("profiles").update({
+        links: editLinks.filter((l) => l.url.trim()).map(({ label, url }) => ({ label: label.trim(), url: url.trim() })),
+      }).eq("id", user.id);
       if (error) throw error;
       await refreshProfile();
       setEditingLinks(false);
@@ -518,7 +518,7 @@ function ProfilePage() {
     profile?.bio ??
     "Atlanta-based community member passionate about closing local access gaps to Wi-Fi, mentorship, and first jobs. Always looking for new volunteer opportunities, study spaces, and friendly mentors who've walked the road before.";
 
-  const rawLinks = user?.user_metadata?.links;
+  const rawLinks = profile?.links;
   const displayLinks: { label: string; url: string }[] =
     (Array.isArray(rawLinks) ? rawLinks as { label: string; url: string }[] : []).filter((l) => l?.url?.trim());
   const rawSkills = user?.user_metadata?.skills;
@@ -735,7 +735,7 @@ function ProfilePage() {
               <h3 className="font-display text-base font-semibold">Links</h3>
               <button
                 onClick={editingLinks ? handleSaveLinks : () => {
-                  const savedLinks = user?.user_metadata?.links;
+                  const savedLinks = profile?.links;
                   setEditLinks((Array.isArray(savedLinks) ? savedLinks as { label: string; url: string }[] : []).map((l) => ({ ...l, id: crypto.randomUUID() })));
                   setEditingLinks(true);
                 }}

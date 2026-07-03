@@ -13,6 +13,7 @@ export type Profile = {
   events_attended: number | null;
   avatar_url: string | null;
   banner_url: string | null;
+  links: { label: string; url: string }[] | null;
 };
 
 type AuthContextType = {
