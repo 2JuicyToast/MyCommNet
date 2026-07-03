@@ -1,0 +1,89 @@
+alter table public.profiles
+drop column if exists zip_code;
+
+create table if not exists public.user_preferences (
+  user_id uuid not null references auth.users on delete cascade,
+  zip_code text,
+  age_range text,
+  life_status text,
+  occupation text,
+  transportation_modes text[] default '{}',
+  travel_range text,
+  low_cost_priority boolean default false,
+  access_preferences text[] default '{}',
+  resource_interests text[] default '{}',
+  personal_interests text[] default '{}',
+  career_interests text[] default '{}',
+  content_preference text,
+  engagement_preference text,
+  onboarding_completed boolean default false,
+  updated_at timestamp with time zone default now(),
+  created_at timestamp with time zone default now(),
+  primary key (user_id)
+);
+
+alter table public.user_preferences add column if not exists gender text;
+alter table public.user_preferences add column if not exists ethnicity text;
+
+create table if not exists public.user_tags (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users on delete cascade,
+  tag text not null,
+  source text,
+  created_at timestamp with time zone default now(),
+  unique (user_id, tag)
+);
+
+alter table public.user_preferences enable row level security;
+alter table public.user_tags enable row level security;
+
+drop policy if exists "Users can view own preferences" on public.user_preferences;
+drop policy if exists "Users can insert own preferences" on public.user_preferences;
+drop policy if exists "Users can update own preferences" on public.user_preferences;
+
+create policy "Users can view own preferences"
+on public.user_preferences
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+create policy "Users can insert own preferences"
+on public.user_preferences
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+create policy "Users can update own preferences"
+on public.user_preferences
+for update
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "Users can view own tags" on public.user_tags;
+drop policy if exists "Users can insert own tags" on public.user_tags;
+drop policy if exists "Users can update own tags" on public.user_tags;
+drop policy if exists "Users can delete own tags" on public.user_tags;
+
+create policy "Users can view own tags"
+on public.user_tags
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+create policy "Users can insert own tags"
+on public.user_tags
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+create policy "Users can update own tags"
+on public.user_tags
+for update
+to authenticated
+using (auth.uid() = user_id);
+
+create policy "Users can delete own tags"
+on public.user_tags
+for delete
+to authenticated
+using (auth.uid() = user_id);
