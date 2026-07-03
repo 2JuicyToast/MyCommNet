@@ -272,8 +272,21 @@ function ResetPasswordPage() {
                     border: "1px solid rgba(79,219,200,0.3)",
                   }}
                 >
-                  {successMsg} Redirecting you to sign in…
+                  {successMsg}
                 </div>
+                <Link
+                  to="/login"
+                  className="block w-full h-11 rounded-lg font-bold text-sm flex items-center justify-center transition-all hover:brightness-110"
+                  style={{
+                    background: "linear-gradient(135deg, #a078ff 0%, #0566d9 100%)",
+                    color: "#ffffff",
+                  }}
+                >
+                  Go to Sign In
+                </Link>
+                <p className="text-xs" style={{ color: "#958ea0" }}>
+                  Redirecting automatically…
+                </p>
               </div>
             )}
 
