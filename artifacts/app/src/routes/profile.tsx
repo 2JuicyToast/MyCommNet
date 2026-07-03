@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   AtSign,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -427,8 +428,8 @@ function ProfilePage() {
             )}
           </div>
 
-          {/* Info left + buttons right, vertically centered, offset past avatar */}
-          <div className="flex items-center justify-between gap-4 min-h-[5rem]" style={{ marginLeft: "calc(1.5rem + 8rem + 1rem)" }}>
+          {/* Info left + buttons right, vertically centered — marginLeft = name's left minus bar's px-6 padding */}
+          <div className="flex items-center justify-between gap-4 min-h-[5rem]" style={{ marginLeft: "calc(8rem + 1rem)" }}>
             {/* Left: user info */}
             <div className="flex flex-col gap-0.5">
               {username && (
@@ -436,7 +437,8 @@ function ProfilePage() {
                   <AtSign className="h-3.5 w-3.5" />{username}
                 </p>
               )}
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Users className="h-3 w-3 shrink-0" />
                 <span>Community Member</span>
                 <span className="opacity-40">·</span>
                 <span>Joined {joinMonth} {joinYear}</span>
