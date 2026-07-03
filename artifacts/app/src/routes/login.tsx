@@ -277,7 +277,7 @@ function LoginPage() {
           </div>
 
           <div className="w-full max-w-md relative z-10">
-            <div className="mb-8">
+            <div className="mb-8" style={{ minHeight: '96px' }}>
               <h1
                 className="text-[32px] leading-10 font-bold mb-2"
                 style={{ color: "#dae2fd", fontFamily: "'Hanken Grotesk', sans-serif" }}
