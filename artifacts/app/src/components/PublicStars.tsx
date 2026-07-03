@@ -83,7 +83,7 @@ export function PublicFooter() {
             Stay Connected
           </p>
         </div>
-        <div className="flex flex-wrap gap-8">
+        <div className="flex flex-wrap gap-6">
           {[
             { label: "Privacy Policy", to: "/privacy-policy" },
             { label: "Terms of Service", to: "/terms-of-service" },
@@ -92,8 +92,19 @@ export function PublicFooter() {
             <a
               key={l.label}
               href={l.to}
-              className="text-xs transition-colors hover:text-white"
-              style={{ color: "#cbc3d7", ...mono }}
+              style={{
+                color: "#cbc3d7",
+                ...mono,
+                display: "inline-block",
+                cursor: "pointer",
+                fontSize: "12px",
+                whiteSpace: "nowrap",
+                padding: "6px 0",
+                textDecoration: "underline",
+                textUnderlineOffset: "3px",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}
             >
               {l.label}
             </a>

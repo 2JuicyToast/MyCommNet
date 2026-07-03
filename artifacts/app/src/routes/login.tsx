@@ -779,13 +779,24 @@ function LoginPage() {
               Stay Connected
             </p>
           </div>
-          <div className="flex flex-wrap gap-8">
+          <div className="flex flex-wrap gap-6">
             {["Privacy Policy", "Terms of Service", "Help Center"].map((l) => (
               <a
                 key={l}
                 href={`/${l.toLowerCase().replace(/ /g, "-")}`}
-                className="text-xs transition-colors hover:text-white"
-                style={{ color: "#cbc3d7", ...mono, display: "inline-block", cursor: "pointer" }}
+                style={{
+                  color: "#cbc3d7",
+                  ...mono,
+                  display: "inline-block",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  whiteSpace: "nowrap",
+                  padding: "6px 0",
+                  textDecoration: "underline",
+                  textUnderlineOffset: "3px",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#cbc3d7")}
               >
                 {l}
               </a>
