@@ -374,12 +374,15 @@ function ProfilePage() {
             : <div className="w-full h-full bg-gradient-brand bg-hero-glow" />
           }
           <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_100%_0%,oklch(0.72_0.13_185/0.35),transparent_60%)]" />
-          {/* Gradient fade at the bottom so name is legible */}
-          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
+          {/* Gradient scrim — keeps name legible against any banner image */}
+          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
           {/* Name + user info sits in the banner just above the bar, cleared of the avatar */}
           <div className="absolute bottom-0 pb-4 pointer-events-none z-0" style={{ left: "calc(1.5rem + 8rem + 1rem)" }}>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white leading-tight drop-shadow">
+              <h1
+                className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white leading-tight"
+                style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9), 0 2px 24px rgba(0,0,0,0.7)" }}
+              >
                 {fullName}
               </h1>
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-teal/20 border border-brand-teal/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-teal">
