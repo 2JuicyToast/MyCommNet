@@ -189,9 +189,9 @@ function SurveySummary({ userId }: { userId: string }) {
           ) : (
             <>
               {location && (
-                <div className="pt-3 flex items-start gap-2">
-                  <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" style={{ color: "#4fdbc8" }} />
-                  <span>{location}</span>
+                <div className="pt-3 flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#4fdbc8" }} />
+                  <span className="leading-none">{location}</span>
                 </div>
               )}
               {(prefs.age_range || prefs.gender) && (

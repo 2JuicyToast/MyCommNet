@@ -429,6 +429,15 @@ function CustomInterestInput({
   );
 }
 
+function formatCustomLabel(value: string): string {
+  const raw = value.startsWith("custom:") ? value.slice(7) : value;
+  return raw
+    .split("_")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 // ── Empty prefs ──────────────────────────────────────────────────────────────
 
 const EMPTY_PREFS: Prefs = {
@@ -1046,7 +1055,7 @@ function OnboardingPage() {
               {customAccess.map((v) => (
                 <Chip
                   key={v}
-                  label={v.slice(7)}
+                  label={formatCustomLabel(v)}
                   selected={true}
                   onClick={() => {}}
                   onRemove={() => removeInterest("access_preferences", v)}
@@ -1084,7 +1093,7 @@ function OnboardingPage() {
               {customResources.map((v) => (
                 <Chip
                   key={v}
-                  label={v.slice(7)}
+                  label={formatCustomLabel(v)}
                   selected={true}
                   onClick={() => {}}
                   onRemove={() => removeInterest("resource_interests", v)}
@@ -1127,7 +1136,7 @@ function OnboardingPage() {
                 {customPersonal.map((v) => (
                   <Chip
                     key={v}
-                    label={v.slice(7)}
+                    label={formatCustomLabel(v)}
                     selected={true}
                     onClick={() => {}}
                     onRemove={() => removeInterest("personal_interests", v)}
@@ -1159,7 +1168,7 @@ function OnboardingPage() {
                 {customCareer.map((v) => (
                   <Chip
                     key={v}
-                    label={v.slice(7)}
+                    label={formatCustomLabel(v)}
                     selected={true}
                     onClick={() => {}}
                     onRemove={() => removeInterest("career_interests", v)}
