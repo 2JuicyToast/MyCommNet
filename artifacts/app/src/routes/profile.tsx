@@ -135,10 +135,20 @@ type UserPrefs = {
   personal_interests?: string[];
   career_interests?: string[];
   resource_interests?: string[];
+  access_preferences?: string[];
   transportation_modes?: string[];
   engagement_preference?: string;
   content_preference?: string;
 };
+
+function communityStyleValue(prefs: UserPrefs | null): string | null {
+  if (!prefs) return null;
+  const cp = prefs.content_preference;
+  const ep = prefs.engagement_preference;
+  if (!cp && !ep) return null;
+  if (cp === "both" && ep === "both") return "community_style: all";
+  return `community_style: ${cp ?? "none"} / ${ep ?? "none"}`;
+}
 
 function SurveySummary({ userId }: { userId: string }) {
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
@@ -154,9 +164,11 @@ function SurveySummary({ userId }: { userId: string }) {
   }
 
   const location = parseLocationDisplay(prefs?.zip_code ?? null);
-  const personalInterests = (prefs?.personal_interests ?? []).slice(0, 5);
-  const careerInterests = (prefs?.career_interests ?? []).slice(0, 5);
-  const resources = (prefs?.resource_interests ?? []).slice(0, 4);
+  const personalInterests = prefs?.personal_interests ?? [];
+  const careerInterests = prefs?.career_interests ?? [];
+  const resources = prefs?.resource_interests ?? [];
+  const accessNeeds = prefs?.access_preferences ?? [];
+  const communityStyle = communityStyleValue(prefs);
 
   return (
     <div className="mt-3 rounded-xl overflow-hidden" style={{ border: "1px solid #1e293b" }}>
@@ -191,8 +203,11 @@ function SurveySummary({ userId }: { userId: string }) {
               )}
               {prefs.life_status && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#958ea0" }}>Situation</p>
-                  <p>{prefs.life_status}{prefs.occupation ? ` · ${prefs.occupation}` : ""}</p>
+                  <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "#958ea0" }}>Situation</p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {labelChip(prefs.life_status, "#eab308")}
+                    {prefs.occupation && <span>{prefs.occupation}</span>}
+                  </div>
                 </div>
               )}
               {personalInterests.length > 0 && (
@@ -213,10 +228,16 @@ function SurveySummary({ userId }: { userId: string }) {
                   <div className="flex flex-wrap gap-1.5">{resources.map((t) => labelChip(t, "#f97316"))}</div>
                 </div>
               )}
-              {prefs.engagement_preference && (
+              {accessNeeds.length > 0 && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#958ea0" }}>Engagement style</p>
-                  <p>{prefs.engagement_preference}</p>
+                  <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "#958ea0" }}>Access needs</p>
+                  <div className="flex flex-wrap gap-1.5">{accessNeeds.map((t) => labelChip(t, "#ec4899"))}</div>
+                </div>
+              )}
+              {communityStyle && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "#958ea0" }}>Community Style</p>
+                  <div className="flex flex-wrap gap-1.5">{labelChip(communityStyle, "#22c55e")}</div>
                 </div>
               )}
             </>

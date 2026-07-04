@@ -345,7 +345,8 @@ function CustomInterestInput({
   function add(label: string) {
     const trimmed = label.trim();
     if (!trimmed) return;
-    onAdd(`custom:${trimmed}`);
+    const tag = trimmed.toLowerCase().replace(/\s+/g, "_");
+    onAdd(`custom:${tag}`);
     setInput("");
     setOpen(false);
   }
@@ -1415,19 +1416,27 @@ function OnboardingPage() {
             </button>
           </div>
 
-          <div className="flex justify-center gap-1.5 mt-4">
+          <div className="flex justify-center flex-wrap gap-2 mt-4">
             {STEPS.map((_, i) => (
-              <div
+              <button
                 key={i}
-                className="rounded-full transition-all"
+                type="button"
+                onClick={() => setStep(i)}
+                aria-label={`Go to page ${i + 1}`}
+                aria-current={i === step ? "step" : undefined}
+                className="flex items-center justify-center rounded-full text-xs font-semibold transition-all active:scale-95"
                 style={{
-                  width: i === step ? "20px" : "6px",
-                  height: "6px",
+                  width: "28px",
+                  height: "28px",
                   background: i === step
-                    ? "linear-gradient(90deg,#a078ff,#0566d9)"
-                    : i < step ? "rgba(160,120,255,0.4)" : "#1e293b",
+                    ? "linear-gradient(135deg,#a078ff,#0566d9)"
+                    : i < step ? "rgba(160,120,255,0.15)" : "rgba(11,19,38,0.6)",
+                  border: i === step ? "1px solid transparent" : "1px solid #1e293b",
+                  color: i === step ? "#fff" : i < step ? "#a078ff" : "#958ea0",
                 }}
-              />
+              >
+                {i + 1}
+              </button>
             ))}
           </div>
         </div>
