@@ -12,6 +12,7 @@ import { PublicFooter } from "@/components/PublicStars";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "../hooks/useAuth";
 import { PublicNav } from "../components/PublicNav";
+import { SupabaseHealthCheck } from "../components/SupabaseHealthCheck";
 
 function NotFoundComponent() {
   const starFieldRef = useRef<HTMLDivElement>(null);
@@ -255,6 +256,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <SupabaseHealthCheck />
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
       </AuthProvider>
