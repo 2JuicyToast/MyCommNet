@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap } from "leaflet";
+import type { Location, Place } from "@/lib/geoapify";
 import "leaflet/dist/leaflet.css";
 
 const FALLBACK_CENTER: [number, number] = [33.749, -84.388];
@@ -21,8 +22,23 @@ const defaultCenter: [number, number] = [
 const attribution =
   '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> &middot; <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>';
 
-export function GeoapifyMap() {
+type MapProps = {
+  focus: Location | null;
+  searched: Location | null;
+  current: (Location & { accuracy: number }) | null;
+  starting: Location | null;
+  resources: Place[];
+  selectedId?: string;
+  onSelect: (place: Place) => void;
+  onAreaChange: (area: Location & { radius: number }) => void;
+};
+
+export function GeoapifyMap({ focus, searched, current, starting, resources, selectedId, onSelect, onAreaChange }: MapProps) {
   const mapElementRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const areaCallback = useRef(onAreaChange);
+  areaCallback.current = onAreaChange;
+  const [ready, setReady] = useState(false);
   const [tileState, setTileState] = useState<"loading" | "loaded" | "error">("loading");
   const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY?.trim();
 
@@ -41,6 +57,16 @@ export function GeoapifyMap() {
         zoomControl: true,
         scrollWheelZoom: true,
       });
+      mapRef.current = map;
+      const reportArea = () => {
+        if (!map) return;
+        const center = map.getCenter();
+        const radius = Math.min(50000, Math.max(1000, map.distance(center, map.getBounds().getNorthEast())));
+        areaCallback.current({ lat: center.lat, lon: center.lng, formatted: "Current map area", radius });
+      };
+      map.on("moveend", reportArea);
+      reportArea();
+      setReady(true);
 
       const tileLayer = L.tileLayer(
         `https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=${encodeURIComponent(apiKey)}`,
@@ -63,8 +89,45 @@ export function GeoapifyMap() {
     return () => {
       disposed = true;
       map?.remove();
+      mapRef.current = null;
     };
   }, [apiKey]);
+
+  useEffect(() => {
+    if (ready && focus) mapRef.current?.setView([focus.lat, focus.lon], 14);
+  }, [focus, ready]);
+
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    let disposed = false;
+    let layer: import("leaflet").LayerGroup | undefined;
+    void import("leaflet").then((L) => {
+      if (disposed || !mapRef.current) return;
+      layer = L.layerGroup().addTo(mapRef.current);
+      function marker(location: Location, color: string, label: string, size = 14, action?: () => void) {
+        const icon = L.divIcon({
+          className: "",
+          html: `<span style="display:block;width:${size}px;height:${size}px;border:3px solid white;border-radius:50%;background:${color};box-shadow:0 0 0 2px ${color}"></span>`,
+          iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+        });
+        const point = L.marker([location.lat, location.lon], { icon, title: label, alt: label });
+        // Text nodes avoid rendering external place names as HTML.
+        const tooltip = document.createElement("span");
+        tooltip.textContent = label;
+        point.bindTooltip(tooltip).addTo(layer!);
+        if (action) point.on("click", action);
+      }
+      if (current) {
+        L.circle([current.lat, current.lon], { radius: current.accuracy, color: "#2563eb", fillOpacity: 0.12 }).addTo(layer);
+        marker(current, "#2563eb", "My current location", 18);
+      }
+      if (starting) marker(starting, "#f59e0b", "Manual starting address", 16);
+      if (searched) marker(searched, "#a855f7", `Searched area: ${searched.formatted}`, 18);
+      resources.forEach((place) => marker(place, place.place_id === selectedId ? "#ef4444" : "#0d9488",
+        `Resource: ${place.name || place.formatted}`, place.place_id === selectedId ? 24 : 16, () => onSelect(place)));
+    });
+    return () => { disposed = true; layer?.remove(); };
+  }, [ready, searched, current, starting, resources, selectedId, onSelect]);
 
   const statusMessage = !apiKey
     ? "Add VITE_GEOAPIFY_API_KEY in Replit Secrets to load map tiles."
@@ -90,7 +153,7 @@ export function GeoapifyMap() {
         </div>
       )}
       <div className="pointer-events-none absolute bottom-5 left-4 z-[1000] rounded-full bg-background/90 px-3 py-1.5 text-[11px] text-muted-foreground shadow-card-soft backdrop-blur">
-        Default map view · not your location
+        {current ? "Blue: GPS" : "Default view is not your location"} · Purple: search · Teal: resource · Red: selected · Amber: start
       </div>
     </div>
   );
