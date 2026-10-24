@@ -10,6 +10,8 @@ MyCommNet is a community website for member profiles, groups, and messaging.
 - Run `pnpm run typecheck` to typecheck the workspace.
 - Required Replit Secrets for the web app: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 - Do not put Supabase values in `.replit` or commit them. Add them to each new Replit project through its Secrets tool.
+- Map tiles also require `VITE_GEOAPIFY_API_KEY` in Replit Secrets. This `VITE_` value is included in browser requests and is visible to visitors; use a Geoapify key restricted to this app's development and published origins.
+- Optional map-center build variables: `VITE_MAP_DEFAULT_LAT` and `VITE_MAP_DEFAULT_LNG`. If omitted or invalid, the map starts centered on Atlanta.
 - The separate API Server artifact is not required for the web app preview and requires a PostgreSQL `DATABASE_URL` to run.
 
 ## Stack
@@ -42,4 +44,5 @@ The site includes member-facing community features such as profiles, groups, onb
 ## Gotchas
 
 - Each fresh Replit project needs the two Supabase Secrets above; they are intentionally not embedded in source or `.replit`.
+- The Geoapify map key is also configured per Replit project; restrict its allowed domains in Geoapify because browser-exposed keys cannot be kept private.
 - Run `pnpm install --frozen-lockfile` after importing if workspace dependencies are missing.
