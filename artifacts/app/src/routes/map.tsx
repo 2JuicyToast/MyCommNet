@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell, PageHeader } from "@/components/AppShell";
+import { GeoapifyMap } from "@/components/GeoapifyMap";
 import {
-  MapPin,
   Wifi,
   Accessibility,
   MonitorSmartphone,
@@ -34,15 +34,6 @@ export const Route = createFileRoute("/map")({
 });
 
 const filters = ["All", "Wi-Fi", "Computers", "Jobs", "Training", "Transport", "Events"];
-
-const pins = [
-  { x: 22, y: 35, label: "TechConnect Hub", color: "purple", active: true },
-  { x: 60, y: 28, label: "Central Library", color: "teal" },
-  { x: 75, y: 55, label: "Atlanta Workforce Center", color: "blue" },
-  { x: 40, y: 68, label: "Westside Free Clinic", color: "purple" },
-  { x: 30, y: 80, label: "Code for Tomorrow", color: "teal" },
-  { x: 85, y: 18, label: "Greenfield Park", color: "blue" },
-];
 
 const reviewCategories = [
   "Cleanliness",
@@ -103,78 +94,7 @@ function MapPage() {
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         {/* Map */}
         <div className="relative h-[460px] overflow-hidden rounded-3xl border border-border/60 bg-surface shadow-card-soft lg:h-[640px]">
-          {/* Stylized map */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,oklch(0.58_0.24_295/0.18),transparent_50%),radial-gradient(circle_at_80%_70%,oklch(0.55_0.22_265/0.15),transparent_55%)]" />
-          <svg
-            className="absolute inset-0 h-full w-full opacity-40"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path
-                  d="M 40 0 L 0 0 0 40"
-                  fill="none"
-                  stroke="oklch(0.96 0.005 250 / 0.06)"
-                  strokeWidth="1"
-                />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-            {/* Streets */}
-            <path
-              d="M0,180 C200,100 400,260 800,140"
-              stroke="oklch(0.96 0.005 250 / 0.18)"
-              strokeWidth="3"
-              fill="none"
-            />
-            <path
-              d="M0,360 C300,420 500,260 800,400"
-              stroke="oklch(0.96 0.005 250 / 0.18)"
-              strokeWidth="3"
-              fill="none"
-            />
-            <path
-              d="M120,0 C180,300 90,500 240,800"
-              stroke="oklch(0.96 0.005 250 / 0.14)"
-              strokeWidth="2.5"
-              fill="none"
-            />
-            <path
-              d="M520,0 C480,300 600,460 540,800"
-              stroke="oklch(0.96 0.005 250 / 0.14)"
-              strokeWidth="2.5"
-              fill="none"
-            />
-          </svg>
-
-          {pins.map((p, i) => (
-            <div
-              key={i}
-              style={{ left: `${p.x}%`, top: `${p.y}%` }}
-              className="absolute -translate-x-1/2 -translate-y-full"
-            >
-              <div
-                className={`relative grid h-10 w-10 place-items-center rounded-full text-white shadow-glow-purple ${p.color === "teal" ? "bg-brand-teal" : p.color === "blue" ? "bg-brand-blue" : "bg-brand-purple"} ${p.active ? "ring-4 ring-white/20 scale-110" : ""}`}
-              >
-                <MapPin className="h-5 w-5" />
-              </div>
-              {p.active && (
-                <div className="absolute left-1/2 top-12 w-56 -translate-x-1/2 rounded-xl border border-border bg-background/95 p-3 text-xs shadow-card-soft backdrop-blur">
-                  <p className="font-semibold">{p.label}</p>
-                  <p className="text-muted-foreground">Computer Lab + Wi-Fi</p>
-                </div>
-              )}
-            </div>
-          ))}
-
-          {/* You are here */}
-          <div className="absolute bottom-6 left-6 flex items-center gap-2 rounded-full bg-background/90 px-3 py-1.5 text-xs backdrop-blur">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-teal opacity-60" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-teal" />
-            </span>
-            You are here
-          </div>
+          <GeoapifyMap />
         </div>
 
         {/* Location card */}
