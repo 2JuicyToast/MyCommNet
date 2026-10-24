@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web"]
+modules = ["nodejs-24", "web"]
 
 [deployment]
 router = "application"
@@ -18,35 +18,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "app"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "api-server"
-
-[[workflows.workflow]]
-name = "app"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=3000 pnpm --filter @workspace/app run dev"
-waitForPort = 3000
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow]]
-name = "api-server"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
-waitForPort = 8080
+args = "artifacts/app: web"
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -55,12 +27,6 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
-
-[userenv]
-
-[userenv.shared]
-VITE_SUPABASE_URL = "https://hcdudyrvrmbqmlpnbxit.supabase.co"
-VITE_SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjZHVkeXJ2cm1icW1scG5ieGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMTg5ODUsImV4cCI6MjA5Nzg5NDk4NX0.8FRYyxCcq9JV_2-ki1oVqBGYfa-4JNsGTNZSVbQk0AI"
 
 [nix]
 channel = "stable-25_05"

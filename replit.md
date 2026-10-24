@@ -1,45 +1,45 @@
-# [Project name]
+# MyCommNet
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+MyCommNet is a community website for member profiles, groups, and messaging.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Use the **Project** run button to start the MyCommNet web app.
+- The web preview is served by the registered `artifacts/app: web` service; its port and Replit proxy routing are configured by the artifact.
+- Install dependencies after importing with `pnpm install --frozen-lockfile`.
+- Run `pnpm run typecheck` to typecheck the workspace.
+- Required Replit Secrets for the web app: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- Do not put Supabase values in `.replit` or commit them. Add them to each new Replit project through its Secrets tool.
+- The separate API Server artifact is not required for the web app preview and requires a PostgreSQL `DATABASE_URL` to run.
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Web: React, Vite, TanStack Router
+- Auth, data, and storage: Supabase JavaScript client
+- Separate API artifact: Express 5, PostgreSQL, Drizzle ORM
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/app/src/routes/` — web pages and route components
+- `artifacts/app/src/lib/supabase.ts` — Supabase browser client and required configuration checks
+- `artifacts/app/vite.config.ts` — Vite host and port configuration for Replit
+- `artifacts/api-server/` and `lib/db/` — optional API server and PostgreSQL packages
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The web app connects directly to Supabase from the browser; Supabase URL and publishable key are client configuration stored in Replit Secrets for per-project setup.
+- The Project run button starts only the web artifact, avoiding duplicate web processes and an unrelated database-backed API blocking the preview.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+The site includes member-facing community features such as profiles, groups, onboarding, and messages.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Keep the imported project structure and make Replit startup repeatable for fresh imports.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Each fresh Replit project needs the two Supabase Secrets above; they are intentionally not embedded in source or `.replit`.
+- Run `pnpm install --frozen-lockfile` after importing if workspace dependencies are missing.
