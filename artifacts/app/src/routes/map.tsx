@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell, PageHeader } from "@/components/AppShell";
 import {
   MapPin,
-  Star,
   Wifi,
   Accessibility,
   MonitorSmartphone,
@@ -45,11 +44,11 @@ const pins = [
   { x: 85, y: 18, label: "Greenfield Park", color: "blue" },
 ];
 
-const reviews = [
-  { label: "Cleanliness", score: 4.6 },
-  { label: "Staff Attentiveness", score: 4.7 },
-  { label: "Accessibility", score: 4.5 },
-  { label: "Overall Experience", score: 4.7 },
+const reviewCategories = [
+  "Cleanliness",
+  "Staff Attentiveness",
+  "Accessibility",
+  "Overall Experience",
 ];
 
 const routes = [
@@ -189,13 +188,6 @@ function MapPage() {
                 <h2 className="mt-2 font-display text-2xl font-bold">TechConnect Hub</h2>
                 <p className="text-sm text-muted-foreground">Computer Lab + Wi-Fi</p>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-1 text-sm font-semibold">
-                  <Star className="h-4 w-4 fill-brand-teal text-brand-teal" />
-                  4.7
-                </div>
-                <p className="text-xs text-muted-foreground">128 reviews</p>
-              </div>
             </div>
 
             <p className="mt-3 text-sm text-muted-foreground">
@@ -234,20 +226,19 @@ function MapPage() {
           <div className="border-t border-border/60 p-6">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-display text-sm font-semibold">Community Reviews</h3>
-              <button className="text-xs text-brand-teal hover:underline">View all →</button>
             </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Community reviews coming soon.
+            </p>
             <div className="space-y-2.5">
-              {reviews.map((r) => (
-                <div key={r.label}>
+              {reviewCategories.map((label) => (
+                <div key={label}>
                   <div className="mb-1 flex justify-between text-xs">
-                    <span className="text-muted-foreground">{r.label}</span>
-                    <span className="font-semibold">{r.score}</span>
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="font-semibold text-muted-foreground">Not rated</span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-                    <div
-                      className="h-full rounded-full bg-gradient-brand"
-                      style={{ width: `${(r.score / 5) * 100}%` }}
-                    />
+                    <div className="h-full w-0 rounded-full bg-gradient-brand" />
                   </div>
                 </div>
               ))}
