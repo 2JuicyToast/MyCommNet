@@ -7,6 +7,8 @@ import {
   geoapifyPlaces,
   geoapifyPlaceDetails,
   geoapifyRoute,
+  isTransportCategory,
+  PUBLIC_TRANSPORT_CATEGORIES,
   distanceKm,
   formatMiles,
   formatDuration,
@@ -37,6 +39,7 @@ import {
   ArrowLeft,
   X,
   CheckCircle2,
+  BusFront,
 } from "lucide-react";
 
 export const Route = createFileRoute("/map")({
@@ -64,12 +67,12 @@ const filterChips = [
   { id: "all", label: "All Resources", categoryKey: "education.library,activity.community_center" },
   { id: "libraries", label: "Libraries", categoryKey: "education.library" },
   { id: "centers", label: "Community Centers", categoryKey: "activity.community_center" },
-  { id: "wifi", label: "Wi-Fi", categoryKey: "" },
-  { id: "computers", label: "Computers", categoryKey: "" },
-  { id: "jobs", label: "Jobs", categoryKey: "" },
-  { id: "training", label: "Training", categoryKey: "" },
-  { id: "transport", label: "Transport", categoryKey: "" },
-  { id: "events", label: "Events", categoryKey: "" },
+  { id: "wifi", label: "Wi-Fi", categoryKey: null },
+  { id: "computers", label: "Computers", categoryKey: null },
+  { id: "jobs", label: "Jobs", categoryKey: null },
+  { id: "training", label: "Training", categoryKey: null },
+  { id: "transport", label: "Transport", categoryKey: PUBLIC_TRANSPORT_CATEGORIES },
+  { id: "events", label: "Events", categoryKey: null },
 ];
 
 const reviewCategories = [
@@ -134,9 +137,9 @@ function MapPage() {
   );
 
   // Active category identifier for Geoapify Places
-  const activeCategoryKey =
-    filterChips.find((f) => f.id === selectedFilter)?.categoryKey ||
-    "education.library,activity.community_center";
+  const activeCategoryKey = filterChips.find((f) => f.id === selectedFilter)?.categoryKey;
+  const selectedFilterLabel = filterChips.find((f) => f.id === selectedFilter)?.label || "resource";
+  const isUnsupportedFilter = activeCategoryKey === null;
 
   // Search resources around a given center
   const loadResources = useCallback(
@@ -150,6 +153,12 @@ function MapPage() {
       setIsLoadingResources(true);
       setResourcesError(null);
       setMapMovedSinceSearch(false);
+      if (!activeCategoryKey) {
+        setResources([]);
+        setResourcesError("No verified or reported resources of this type are currently available.");
+        setIsLoadingResources(false);
+        return;
+      }
       try {
         const places = await geoapifyPlaces(
           {
@@ -351,15 +360,12 @@ function MapPage() {
 
   // Handle filter chip clicks
   function handleFilterClick(chip: (typeof filterChips)[0]) {
-    if (chip.categoryKey) {
-      setSelectedFilter(chip.id);
-      setUnsupportedNotice(null);
-    } else {
-      setSelectedFilter(chip.id);
-      setUnsupportedNotice(
-        `Geoapify Places does not index "${chip.label}" as an independent search category. Showing nearby libraries and community centers which commonly provide public access to ${chip.label.toLowerCase()}.`,
-      );
-    }
+    setSelectedFilter(chip.id);
+    setUnsupportedNotice(null);
+    setSelectedResource(null);
+    setResourceDetails(null);
+    setRouteResult(null);
+    setRouteError(null);
   }
 
   // Resource details object (merges base place and fetched details)
@@ -367,11 +373,14 @@ function MapPage() {
 
   const isLibrary = activePlace?.categories?.some((c) => c.includes("library"));
   const isCommunityCenter = activePlace?.categories?.some((c) => c.includes("community_center"));
+  const isTransport = activePlace?.categories?.some(isTransportCategory);
   const categoryLabel = isLibrary
     ? "Public Library"
     : isCommunityCenter
       ? "Community Center"
-      : "Community Facility";
+      : isTransport
+        ? "Public Transport"
+        : "Community Facility";
 
   // Straight line distance
   const straightLineDistanceMeters =
@@ -382,7 +391,7 @@ function MapPage() {
       <PageHeader
         eyebrow="Community Map & Navigation"
         title="Map"
-        subtitle="Discover nearby libraries, community centers, and directions."
+        subtitle="Discover nearby community resources, public transport, and directions."
         actions={
           <button
             type="button"
@@ -586,11 +595,15 @@ function MapPage() {
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                         isLibrary
                           ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
-                          : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                          : isTransport
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                            : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                       }`}
                     >
                       {isLibrary ? (
                         <BookOpen className="h-3 w-3" />
+                      ) : isTransport ? (
+                        <BusFront className="h-3 w-3" />
                       ) : (
                         <Building2 className="h-3 w-3" />
                       )}
@@ -729,11 +742,16 @@ function MapPage() {
                 ) : (
                   <div className="space-y-3">
                     {/* Travel Mode Selector */}
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       {[
-                        { mode: "walk" as TravelMode, label: "Walk", icon: Footprints },
                         { mode: "drive" as TravelMode, label: "Drive", icon: Car },
+                        {
+                          mode: "transit" as TravelMode,
+                          label: "Public transport",
+                          icon: BusFront,
+                        },
                         { mode: "bicycle" as TravelMode, label: "Bike", icon: Bike },
+                        { mode: "walk" as TravelMode, label: "Walk", icon: Footprints },
                       ].map((item) => {
                         const Icon = item.icon;
                         const isSelected = travelMode === item.mode;
@@ -845,8 +863,12 @@ function MapPage() {
               <div className="border-b border-border/60 p-5">
                 <h2 className="font-display text-lg font-bold">Nearby Community Resources</h2>
                 <p className="text-xs text-muted-foreground">
-                  Showing {resources.length} verified libraries and community centers in this area.
-                  Click any resource to view details and directions.
+                  {isUnsupportedFilter
+                    ? `No verified or reported ${selectedFilterLabel.toLowerCase()} resources are currently available.`
+                    : selectedFilter === "transport"
+                      ? `Showing ${resources.length} public transport stops and stations in this area.`
+                      : `Showing ${resources.length} verified libraries and community centers in this area.`}
+                  {" "}Click any resource to view details and directions.
                 </p>
               </div>
 
@@ -864,10 +886,15 @@ function MapPage() {
               ) : resources.length === 0 && !resourcesError ? (
                 <div className="p-8 text-center text-xs text-muted-foreground">
                   <Building2 className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
-                  <p className="font-medium text-foreground">No resources loaded</p>
+                  <p className="font-medium text-foreground">
+                    {isUnsupportedFilter
+                      ? "No verified or reported resources of this type are currently available."
+                      : "No resources loaded"}
+                  </p>
                   <p className="mt-1">
-                    Try searching an address above or click &ldquo;Use my location&rdquo; to find
-                    community centers and libraries.
+                    {isUnsupportedFilter
+                      ? "Try another filter to explore available map resources."
+                      : 'Try searching an address above or click "Use my location" to find community centers and libraries.'}
                   </p>
                 </div>
               ) : (
@@ -875,7 +902,14 @@ function MapPage() {
                   {resources.map((place) => {
                     const isLib = place.categories?.some((c) => c.includes("library"));
                     const isCtr = place.categories?.some((c) => c.includes("community_center"));
-                    const tag = isLib ? "Library" : isCtr ? "Community Center" : "Resource";
+                    const isTransit = place.categories?.some(isTransportCategory);
+                    const tag = isLib
+                      ? "Library"
+                      : isCtr
+                        ? "Community Center"
+                        : isTransit
+                          ? "Public Transport"
+                          : "Resource";
 
                     const dist = startingPoint ? distanceKm(startingPoint, place) * 1000 : null;
 
@@ -890,11 +924,15 @@ function MapPage() {
                           className={`mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${
                             isLib
                               ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
-                              : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                              : isTransit
+                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                           }`}
                         >
                           {isLib ? (
                             <BookOpen className="h-4 w-4" />
+                          ) : isTransit ? (
+                            <BusFront className="h-4 w-4" />
                           ) : (
                             <Building2 className="h-4 w-4" />
                           )}

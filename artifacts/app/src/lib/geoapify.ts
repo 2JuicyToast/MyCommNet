@@ -13,7 +13,7 @@ export type Place = Location & {
   description?: string;
 };
 
-export type TravelMode = "walk" | "drive" | "bicycle";
+export type TravelMode = "drive" | "transit" | "bicycle" | "walk";
 
 export type RouteStep = {
   text: string;
@@ -119,6 +119,19 @@ export async function geoapifyPlaces(
     },
     signal,
   );
+}
+
+export const PUBLIC_TRANSPORT_CATEGORIES = [
+  "transport.bus.stop",
+  "transport.bus.station",
+  "transport.train.station",
+  "transport.tram.stop",
+  "transport.subway.station",
+  "transport.public",
+].join(",");
+
+export function isTransportCategory(category: string): boolean {
+  return category.startsWith("transport.");
 }
 
 export async function geoapifyPlaceDetails(
