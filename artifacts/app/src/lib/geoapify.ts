@@ -122,16 +122,16 @@ export async function geoapifyPlaces(
 }
 
 export const PUBLIC_TRANSPORT_CATEGORIES = [
-  "transport.bus.stop",
-  "transport.bus.station",
-  "transport.train.station",
-  "transport.tram.stop",
-  "transport.subway.station",
-  "transport.public",
+  "public_transport.bus_stop",
+  "public_transport.bus_station",
+  "public_transport.train_station",
+  "public_transport.tram_stop",
+  "public_transport.subway_station",
+  "public_transport.light_rail_station",
 ].join(",");
 
 export function isTransportCategory(category: string): boolean {
-  return category.startsWith("transport.");
+  return category.startsWith("public_transport.") || category.startsWith("transport.");
 }
 
 export async function geoapifyPlaceDetails(
