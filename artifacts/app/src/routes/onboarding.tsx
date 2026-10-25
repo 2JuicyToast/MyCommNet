@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { generateTags, type Prefs } from "@/lib/tags";
 
-const logoSrc = "/logo.png";
+const logoSrc = `${import.meta.env.BASE_URL}logo.png`;
 const mono = { fontFamily: "'JetBrains Mono', monospace" };
 
 export const Route = createFileRoute("/onboarding")({

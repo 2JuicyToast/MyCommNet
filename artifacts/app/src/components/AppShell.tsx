@@ -18,7 +18,7 @@ import { useEffect, useState, useRef, type ReactNode } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 
-const logoSrc = "/logo.png";
+const logoSrc = `${import.meta.env.BASE_URL}logo.png`;
 
 const navItems: { to: string; label: string; icon: typeof Home; badge?: number }[] = [
   { to: "/main", label: "Home", icon: Home },

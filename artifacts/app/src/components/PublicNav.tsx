@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 type ActivePage = "home" | "about" | "features";
 
 export function PublicNav({ activePage }: { activePage?: ActivePage }) {
+  const logoSrc = `${import.meta.env.BASE_URL}logo.png`;
   const hanken = { fontFamily: "'Hanken Grotesk', sans-serif" };
   const { user, profile, loading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -52,7 +53,7 @@ export function PublicNav({ activePage }: { activePage?: ActivePage }) {
       {/* Logo — links to /main if logged in, / if logged out */}
       <Link to={isLoggedIn ? "/main" : "/"} className="flex items-center gap-3">
         <img
-          src="/logo.png"
+          src={logoSrc}
           alt="MyCommNet Logo"
           className="h-10 w-10 rounded-full object-cover"
           style={{ boxShadow: "0 0 12px rgba(160,120,255,0.5)" }}

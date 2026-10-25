@@ -87,7 +87,7 @@ export function PublicFooter() {
           {["Privacy Policy", "Terms of Service", "Help Center"].map((label) => (
             <a
               key={label}
-              href="/404"
+              href={`${import.meta.env.BASE_URL}404`}
               style={{
                 color: "#cbc3d7",
                 ...mono,

@@ -270,7 +270,7 @@ function HomePage() {
                 </Link>
                 {/* Explore Local Groups — not yet built, intentionally 404 */}
                 <a
-                  href="/explore-local-groups"
+                  href={`${import.meta.env.BASE_URL}explore-local-groups`}
                   className="font-bold text-base transition-all hover:text-white pb-1"
                   style={{ color: "#dae2fd", borderBottom: "1px solid rgba(218,226,253,0.3)" }}
                 >

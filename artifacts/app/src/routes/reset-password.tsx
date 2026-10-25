@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Lock, Eye, EyeOff, Check, X, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-const logoSrc = "/logo.png";
+const logoSrc = `${import.meta.env.BASE_URL}logo.png`;
 const mono = { fontFamily: "'JetBrains Mono', monospace" };
 
 const inputBase: React.CSSProperties = {
