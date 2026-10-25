@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, Polyline as LeafletPolyline, LayerGroup as LeafletLayerGroup } from "leaflet";
-import type { Location, Place } from "@/lib/geoapify";
+import { isTransportCategory, type Location, type Place } from "@/lib/geoapify";
 import { RefreshCw } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
@@ -204,6 +204,7 @@ export function GeoapifyMap({
         const isSelected = place.place_id === selectedId;
         const isLibrary = place.categories?.some((c) => c.includes("library"));
         const isCommunityCenter = place.categories?.some((c) => c.includes("community_center"));
+        const isTransport = place.categories?.some(isTransportCategory);
 
         const color = isSelected
           ? "#ef4444"
@@ -211,9 +212,17 @@ export function GeoapifyMap({
             ? "#0284c7"
             : isCommunityCenter
               ? "#059669"
+              : isTransport
+                ? "#d97706"
               : "#0d9488";
 
-        const categoryTag = isLibrary ? "Library" : isCommunityCenter ? "Community Center" : "Resource";
+        const categoryTag = isLibrary
+          ? "Library"
+          : isCommunityCenter
+            ? "Community Center"
+            : isTransport
+              ? "Public Transport"
+              : "Resource";
         const label = `${place.name || place.formatted} (${categoryTag})`;
 
         createMarker(
@@ -297,6 +306,9 @@ export function GeoapifyMap({
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2.5 w-2.5 rounded-full bg-[#059669]" /> Community Center
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#d97706]" /> Public Transport
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444]" /> Selected
