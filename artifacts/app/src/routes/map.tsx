@@ -13,6 +13,7 @@ import {
   formatMiles,
   formatDuration,
   safeExternalUrl,
+  transitPlaceUrl,
   type Location,
   type Place,
   type RouteResult,
@@ -152,6 +153,7 @@ function MapPage() {
       resourcesRequest.current = request;
       setIsLoadingResources(true);
       setResourcesError(null);
+      setResources([]);
       setMapMovedSinceSearch(false);
       if (!activeCategoryKey) {
         setResources([]);
@@ -180,6 +182,7 @@ function MapPage() {
       } catch (err: unknown) {
         if (request.controller.signal.aborted || resourcesRequest.current?.id !== request.id)
           return;
+        setResources([]);
         const message = err instanceof Error ? err.message : "Failed to load community resources.";
         setResourcesError(message);
       } finally {
@@ -671,6 +674,17 @@ function MapPage() {
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <ExternalLink className="h-3.5 w-3.5" /> Website: Not provided
                     </span>
+                  )}
+
+                  {isTransport && (
+                    <a
+                      href={safeExternalUrl(transitPlaceUrl(activePlace))!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 font-medium text-brand-teal hover:underline"
+                    >
+                      <BusFront className="h-3.5 w-3.5" /> View stop routes
+                    </a>
                   )}
                 </div>
 

@@ -122,16 +122,22 @@ export async function geoapifyPlaces(
 }
 
 export const PUBLIC_TRANSPORT_CATEGORIES = [
-  "public_transport.bus_stop",
-  "public_transport.bus_station",
-  "public_transport.train_station",
-  "public_transport.tram_stop",
-  "public_transport.subway_station",
-  "public_transport.light_rail_station",
+  "public_transport.bus",
+  "public_transport.ferry",
+  "public_transport.light_rail",
+  "public_transport.monorail",
+  "public_transport.platform",
+  "public_transport.subway",
+  "public_transport.train",
+  "public_transport.tram",
 ].join(",");
 
 export function isTransportCategory(category: string): boolean {
-  return category.startsWith("public_transport.") || category.startsWith("transport.");
+  return (
+    category === "public_transport" ||
+    category.startsWith("public_transport.") ||
+    category.startsWith("transport.")
+  );
 }
 
 export async function geoapifyPlaceDetails(
@@ -288,4 +294,15 @@ export function safeExternalUrl(url?: string): string | null {
     }
   }
   return null;
+}
+
+export function transitPlaceUrl(
+  place: Pick<Place, "name" | "formatted" | "lat" | "lon">,
+): string {
+  const query = `${place.name || place.formatted} (${place.lat}, ${place.lon})`;
+  const params = new URLSearchParams({
+    api: "1",
+    query,
+  });
+  return `https://www.google.com/maps/search/?${params.toString()}`;
 }
