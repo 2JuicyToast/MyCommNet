@@ -5,8 +5,10 @@ import tsConfigPaths from "vite-tsconfig-paths";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 
 const port = parseInt(process.env.PORT || "3000", 10);
+const basePath = process.env.VITE_BASE_PATH || "/";
 
 export default defineConfig({
+  base: basePath,
   plugins: [
     TanStackRouterVite({
       routesDirectory: "./src/routes",

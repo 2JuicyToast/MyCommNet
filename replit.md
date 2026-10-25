@@ -13,7 +13,12 @@ MyCommNet is a community website for member profiles, groups, and messaging.
 - Map tiles also require `VITE_GEOAPIFY_API_KEY` in Replit Secrets. This `VITE_` value is included in browser requests and is visible to visitors; use a Geoapify key restricted to this app's development and published origins.
 - Optional map-center build variables: `VITE_MAP_DEFAULT_LAT` and `VITE_MAP_DEFAULT_LNG`. If omitted or invalid, the map starts centered on Atlanta.
 - The separate API Server artifact is not required for the web app preview and requires a PostgreSQL `DATABASE_URL` to run.
+## GitHub Pages
 
+- The `Deploy app to GitHub Pages` workflow builds `@workspace/app` with pnpm and publishes it at `https://<owner>.github.io/MyCommNet/`.
+- Configure repository Actions secrets named `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `VITE_GEOAPIFY_API_KEY`; never commit their values. Optional map-center variables can be added to the workflow environment if needed.
+- GitHub Pages builds set `VITE_BASE_PATH=/MyCommNet/`. Vite and TanStack Router use this base path, and the workflow copies `dist/index.html` to `dist/404.html` so client-side routes have an SPA fallback.
+- Add the published Pages URL, including `/MyCommNet/`, and its `/MyCommNet/reset-password` URL to Supabase Authentication URL configuration. Password-reset emails must allow the current origin plus the app base path.
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
@@ -25,7 +30,7 @@ MyCommNet is a community website for member profiles, groups, and messaging.
 
 - `artifacts/app/src/routes/` — web pages and route components
 - `artifacts/app/src/lib/supabase.ts` — Supabase browser client and required configuration checks
-- `artifacts/app/vite.config.ts` — Vite host and port configuration for Replit
+- `artifacts/app/vite.config.ts` — Vite host, port, and configurable deployment base path
 - `artifacts/api-server/` and `lib/db/` — optional API server and PostgreSQL packages
 
 ## Architecture decisions
@@ -46,3 +51,5 @@ The site includes member-facing community features such as profiles, groups, onb
 - Each fresh Replit project needs the two Supabase Secrets above; they are intentionally not embedded in source or `.replit`.
 - The Geoapify map key is also configured per Replit project; restrict its allowed domains in Geoapify because browser-exposed keys cannot be kept private.
 - Run `pnpm install --frozen-lockfile` after importing if workspace dependencies are missing.
+
+- For GitHub Pages, configure the three required Actions secrets and ensure Supabase allows the Pages site and its base-path reset-password redirect.

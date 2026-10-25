@@ -5,7 +5,7 @@ import { Mail, Lock, Eye, EyeOff, LogIn, Check, X, AtSign, RefreshCw, Users, Zap
 import { supabase } from "@/lib/supabase";
 import { PublicFooter } from "@/components/PublicStars";
 
-const logoSrc = "/logo.png";
+const logoSrc = `${import.meta.env.BASE_URL}logo.png`;
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
