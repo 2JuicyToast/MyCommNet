@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell, PageHeader } from "@/components/AppShell";
 import { GeoapifyMap } from "@/components/GeoapifyMap";
@@ -81,7 +81,9 @@ const reviewCategories = [
 
 function MapPage() {
   // Location states
-  const [currentLocation, setCurrentLocation] = useState<(Location & { accuracy: number }) | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<(Location & { accuracy: number }) | null>(
+    null,
+  );
   const [manualStartLocation, setManualStartLocation] = useState<Location | null>(null);
   const [searchLocation, setSearchLocation] = useState<Location | null>(null);
   const [mapArea, setMapArea] = useState<{ lat: number; lon: number; radius: number }>({
@@ -115,16 +117,21 @@ function MapPage() {
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [showTurnByTurn, setShowTurnByTurn] = useState(false);
+  const resourcesRequest = useRef<{ id: number; controller: AbortController } | null>(null);
+  const detailsRequest = useRef<{ id: number; controller: AbortController } | null>(null);
 
   // Mobile view toggle (Map vs List)
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
 
   // Effective starting point for directions
-  const startingPoint: Location | null =
-    manualStartLocation ||
-    (currentLocation
-      ? { lat: currentLocation.lat, lon: currentLocation.lon, formatted: "My Current Location" }
-      : null);
+  const startingPoint = useMemo<Location | null>(
+    () =>
+      manualStartLocation ||
+      (currentLocation
+        ? { lat: currentLocation.lat, lon: currentLocation.lon, formatted: "My Current Location" }
+        : null),
+    [currentLocation, manualStartLocation],
+  );
 
   // Active category identifier for Geoapify Places
   const activeCategoryKey =
@@ -134,29 +141,53 @@ function MapPage() {
   // Search resources around a given center
   const loadResources = useCallback(
     async (lat: number, lon: number, radius = 5000) => {
+      resourcesRequest.current?.controller.abort();
+      const request = {
+        id: (resourcesRequest.current?.id || 0) + 1,
+        controller: new AbortController(),
+      };
+      resourcesRequest.current = request;
       setIsLoadingResources(true);
       setResourcesError(null);
       setMapMovedSinceSearch(false);
       try {
-        const places = await geoapifyPlaces({
-          categories: activeCategoryKey,
-          lat,
-          lon,
-          radiusMeters: radius,
-          limit: 25,
-        });
+        const places = await geoapifyPlaces(
+          {
+            categories: activeCategoryKey,
+            lat,
+            lon,
+            radiusMeters: radius,
+            limit: 25,
+          },
+          request.controller.signal,
+        );
+        if (resourcesRequest.current?.id !== request.id) return;
         setResources(places);
         if (places.length === 0) {
-          setResourcesError("No community resources found in this area. Try panning or expanding your search.");
+          setResourcesError(
+            "No community resources found in this area. Try panning or expanding your search.",
+          );
         }
-      } catch (err: any) {
-        setResourcesError(err.message || "Failed to load community resources.");
+      } catch (err: unknown) {
+        if (request.controller.signal.aborted || resourcesRequest.current?.id !== request.id)
+          return;
+        const message = err instanceof Error ? err.message : "Failed to load community resources.";
+        setResourcesError(message);
       } finally {
-        setIsLoadingResources(false);
+        if (resourcesRequest.current?.id === request.id) {
+          setIsLoadingResources(false);
+        }
       }
     },
     [activeCategoryKey],
   );
+
+  useEffect(() => {
+    return () => {
+      resourcesRequest.current?.controller.abort();
+      detailsRequest.current?.controller.abort();
+    };
+  }, []);
 
   // Initial load
   const hasInitialized = useRef(false);
@@ -188,7 +219,9 @@ function MapPage() {
   // Handle "Use My Location"
   function handleUseMyLocation() {
     if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported by your browser. Please enter a starting address manually.");
+      setLocationError(
+        "Geolocation is not supported by your browser. Please enter a starting address manually.",
+      );
       setShowManualStartInput(true);
       return;
     }
@@ -221,11 +254,17 @@ function MapPage() {
             "Location access was denied. If using an embedded preview window, browser permissions may be blocked; try opening the standalone preview at http://localhost:3000 directly. You can also enter a starting address manually below.",
           );
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          setLocationError("Location information is unavailable on your device or network. Please enter a starting address manually.");
+          setLocationError(
+            "Location information is unavailable on your device or network. Please enter a starting address manually.",
+          );
         } else if (error.code === error.TIMEOUT) {
-          setLocationError("Location request timed out. Please try again or enter a starting address manually.");
+          setLocationError(
+            "Location request timed out. Please try again or enter a starting address manually.",
+          );
         } else {
-          setLocationError("Could not retrieve your location. Please enter a starting address manually.");
+          setLocationError(
+            "Could not retrieve your location. Please enter a starting address manually.",
+          );
         }
         setShowManualStartInput(true);
       },
@@ -234,7 +273,13 @@ function MapPage() {
   }
 
   // Handle Resource Selection
-  function handleSelectResource(place: Place) {
+  const handleSelectResource = useCallback((place: Place) => {
+    detailsRequest.current?.controller.abort();
+    const request = {
+      id: (detailsRequest.current?.id || 0) + 1,
+      controller: new AbortController(),
+    };
+    detailsRequest.current = request;
     setSelectedResource(place);
     setResourceDetails(null);
     setRouteResult(null);
@@ -245,18 +290,24 @@ function MapPage() {
     // Fetch rich place details if place_id exists
     if (place.place_id) {
       setIsLoadingDetails(true);
-      geoapifyPlaceDetails(place.place_id)
+      geoapifyPlaceDetails(place.place_id, request.controller.signal)
         .then((details) => {
-          if (details) setResourceDetails(details);
+          if (detailsRequest.current?.id === request.id && details) {
+            setResourceDetails(details);
+          }
         })
         .catch(() => {
-          // Fall back gracefully to base place
+          // Fall back gracefully to base place, including aborted requests.
         })
         .finally(() => {
-          setIsLoadingDetails(false);
+          if (detailsRequest.current?.id === request.id) {
+            setIsLoadingDetails(false);
+          }
         });
+    } else {
+      setIsLoadingDetails(false);
     }
-  }
+  }, []);
 
   // Calculate Route when resource, startingPoint, or travelMode changes
   useEffect(() => {
@@ -281,7 +332,9 @@ function MapPage() {
           setRouteResult(res);
           setIsLoadingRoute(false);
           if (!res) {
-            setRouteError(`No ${travelMode} route could be calculated between these two locations.`);
+            setRouteError(
+              `No ${travelMode} route could be calculated between these two locations.`,
+            );
           }
         }
       })
@@ -314,13 +367,15 @@ function MapPage() {
 
   const isLibrary = activePlace?.categories?.some((c) => c.includes("library"));
   const isCommunityCenter = activePlace?.categories?.some((c) => c.includes("community_center"));
-  const categoryLabel = isLibrary ? "Public Library" : isCommunityCenter ? "Community Center" : "Community Facility";
+  const categoryLabel = isLibrary
+    ? "Public Library"
+    : isCommunityCenter
+      ? "Community Center"
+      : "Community Facility";
 
   // Straight line distance
   const straightLineDistanceMeters =
-    startingPoint && activePlace
-      ? distanceKm(startingPoint, activePlace) * 1000
-      : null;
+    startingPoint && activePlace ? distanceKm(startingPoint, activePlace) * 1000 : null;
 
   return (
     <AppShell>
@@ -534,7 +589,11 @@ function MapPage() {
                           : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                       }`}
                     >
-                      {isLibrary ? <BookOpen className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                      {isLibrary ? (
+                        <BookOpen className="h-3 w-3" />
+                      ) : (
+                        <Building2 className="h-3 w-3" />
+                      )}
                       {categoryLabel}
                     </span>
                     <h2 className="mt-2 font-display text-2xl font-bold">
@@ -553,7 +612,10 @@ function MapPage() {
                 {straightLineDistanceMeters !== null && (
                   <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-brand-teal">
                     <Navigation className="h-3.5 w-3.5" />
-                    <span>Approx. {formatMiles(straightLineDistanceMeters)} straight-line from starting point</span>
+                    <span>
+                      Approx. {formatMiles(straightLineDistanceMeters)} straight-line from starting
+                      point
+                    </span>
                   </div>
                 )}
 
@@ -602,8 +664,8 @@ function MapPage() {
                 {/* Factual description */}
                 <div className="mt-4 rounded-xl bg-surface-2 p-3 text-xs leading-relaxed text-muted-foreground">
                   <p>
-                    A public {categoryLabel.toLowerCase()} serving the local community. Resource details verified from
-                    Geoapify &amp; OpenStreetMap records.
+                    A public {categoryLabel.toLowerCase()} serving the local community. Resource
+                    details verified from Geoapify &amp; OpenStreetMap records.
                   </p>
                 </div>
               </div>
@@ -632,7 +694,9 @@ function MapPage() {
               {/* Distance and Directions Card */}
               <div className="border-t border-border/60 p-6">
                 <div className="mb-3">
-                  <h3 className="font-display text-sm font-semibold">How do you want to get there?</h3>
+                  <h3 className="font-display text-sm font-semibold">
+                    How do you want to get there?
+                  </h3>
                   <p className="text-xs text-muted-foreground">
                     {startingPoint
                       ? `Starting from: ${startingPoint.formatted}`
@@ -711,7 +775,9 @@ function MapPage() {
                           <div>
                             <p className="text-base font-bold text-foreground">
                               {formatDuration(routeResult.timeSeconds)}{" "}
-                              <span className="text-xs font-normal text-muted-foreground">(estimated)</span>
+                              <span className="text-xs font-normal text-muted-foreground">
+                                (estimated)
+                              </span>
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {formatMiles(routeResult.distanceMeters)} route distance
@@ -731,8 +797,8 @@ function MapPage() {
                               className="flex w-full items-center justify-between text-xs font-medium text-foreground hover:text-brand-teal"
                             >
                               <span>
-                                {showTurnByTurn ? "Hide" : "View"} turn-by-turn directions ({routeResult.steps.length}{" "}
-                                steps)
+                                {showTurnByTurn ? "Hide" : "View"} turn-by-turn directions (
+                                {routeResult.steps.length} steps)
                               </span>
                               {showTurnByTurn ? (
                                 <ChevronUp className="h-3.5 w-3.5" />
@@ -766,8 +832,8 @@ function MapPage() {
                     )}
 
                     <p className="text-[10px] text-muted-foreground">
-                      ⓘ Route travel times are estimates based on standard speeds and distance, not live-traffic or
-                      continuous GPS navigation.
+                      ⓘ Route travel times are estimates based on standard speeds and distance, not
+                      live-traffic or continuous GPS navigation.
                     </p>
                   </div>
                 )}
@@ -779,8 +845,8 @@ function MapPage() {
               <div className="border-b border-border/60 p-5">
                 <h2 className="font-display text-lg font-bold">Nearby Community Resources</h2>
                 <p className="text-xs text-muted-foreground">
-                  Showing {resources.length} verified libraries and community centers in this area. Click any resource
-                  to view details and directions.
+                  Showing {resources.length} verified libraries and community centers in this area.
+                  Click any resource to view details and directions.
                 </p>
               </div>
 
@@ -800,7 +866,8 @@ function MapPage() {
                   <Building2 className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
                   <p className="font-medium text-foreground">No resources loaded</p>
                   <p className="mt-1">
-                    Try searching an address above or click &ldquo;Use my location&rdquo; to find community centers and libraries.
+                    Try searching an address above or click &ldquo;Use my location&rdquo; to find
+                    community centers and libraries.
                   </p>
                 </div>
               ) : (
@@ -826,7 +893,11 @@ function MapPage() {
                               : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                           }`}
                         >
-                          {isLib ? <BookOpen className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
+                          {isLib ? (
+                            <BookOpen className="h-4 w-4" />
+                          ) : (
+                            <Building2 className="h-4 w-4" />
+                          )}
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
