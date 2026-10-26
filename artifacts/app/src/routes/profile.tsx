@@ -317,8 +317,8 @@ function localDateKey(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-function isFutureDate(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && value > localDateKey();
+function isTodayOrLater(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= localDateKey();
 }
 
 function formatGoalDate(value: string | null): string {
@@ -334,9 +334,9 @@ function dateFromKey(value: string): Date | undefined {
   return new Date(year, month - 1, day);
 }
 
-function tomorrowLocal(): Date {
+function todayLocal(): Date {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
 function goalTextMatches(goal: CustomGoalDraft): string {
@@ -446,8 +446,8 @@ function GoalsInProgress({ userId }: { userId: string }) {
         setError("Add a goal name and a clear completion requirement.");
         return;
       }
-      if (customGoal.targetDate && !isFutureDate(customGoal.targetDate) && (!editingGoal || customGoal.targetDate !== editingGoal.target_date)) {
-        setError("Choose a date after today.");
+      if (customGoal.targetDate && !isTodayOrLater(customGoal.targetDate) && (!editingGoal || customGoal.targetDate !== editingGoal.target_date)) {
+        setError("Choose today or a later date.");
         return;
       }
 
@@ -646,7 +646,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
                     />
                     <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
                       <PopoverTrigger asChild>
-                        <button type="button" aria-label="Open calendar" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-background text-muted-foreground hover:border-brand-teal focus-visible:border-brand-teal focus-visible:ring-2 focus-visible:ring-brand-teal/50">
+                        <button type="button" aria-label="Open calendar" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-100 hover:text-slate-900 focus-visible:border-brand-teal focus-visible:ring-2 focus-visible:ring-brand-teal/50">
                           <CalendarDays className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </PopoverTrigger>
@@ -656,7 +656,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
                           captionLayout="dropdown"
                           selected={dateFromKey(customGoal.targetDate)}
                           defaultMonth={dateFromKey(customGoal.targetDate) ?? new Date()}
-                          disabled={{ before: tomorrowLocal() }}
+                          disabled={{ before: todayLocal() }}
                           onSelect={(date) => {
                             setCustomGoal((current) => ({ ...current, targetDate: date ? localDateKey(date) : "" }));
                             setDatePopoverOpen(false);
@@ -664,13 +664,13 @@ function GoalsInProgress({ userId }: { userId: string }) {
                           initialFocus
                         />
                         <div className="flex items-center justify-between border-t border-border px-3 py-2">
-                          <span className="text-[11px] text-muted-foreground">Choose a date after today.</span>
+                          <span className="text-[11px] text-muted-foreground">Choose today or a later date.</span>
                           {customGoal.targetDate && <button type="button" onClick={() => setCustomGoal((current) => ({ ...current, targetDate: "" }))} className="text-xs font-semibold text-brand-teal hover:underline">Clear</button>}
                         </div>
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">Choose a date after today.</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Choose today or a later date.</p>
                 </div>
                 <fieldset className="text-xs">
                   <legend className="mb-1 font-medium">How does this relate to MyCommNet?</legend>
