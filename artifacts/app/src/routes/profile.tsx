@@ -1112,6 +1112,8 @@ function ProfilePage() {
   const [pendingBannerBlob, setPendingBannerBlob] = useState<Blob | null>(null);
   const [pendingBannerPreview, setPendingBannerPreview] = useState<string | null>(null);
   // Edit-mode fields
+  const [savedName, setSavedName] = useState<string | null>(null);
+  const [savedHeadline, setSavedHeadline] = useState<string | null>(null);
   const [editFullName, setEditFullName] = useState("");
   const [editHeadline, setEditHeadline] = useState("");
   const [editBio, setEditBio] = useState("");
@@ -1126,6 +1128,26 @@ function ProfilePage() {
   const [passError, setPassError] = useState<string | null>(null);
   const [passPdfUrl, setPassPdfUrl] = useState<string | null>(null);
   const [passQrUrl, setPassQrUrl] = useState<string | null>(null);
+
+  // Statistics state holders: Events Attended, Service Hours, Groups Joined, Connections
+  const [stats, setStats] = useState<{
+    eventsAttended: number;
+    serviceHours: number;
+    groupsJoined: number;
+    connections: number;
+    loading: boolean;
+    error: string | null;
+    schemaPending: boolean;
+  }>({
+    eventsAttended: 0,
+    serviceHours: 0,
+    groupsJoined: 0,
+    connections: 0,
+    loading: false,
+    error: null,
+    schemaPending: false,
+  });
+
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -1145,6 +1167,128 @@ function ProfilePage() {
     if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
     if (profile?.banner_url) setBannerUrl(profile.banner_url);
   }, [profile]);
+
+  // Connect statistics to Supabase tables scoped strictly to the authenticated user
+  useEffect(() => {
+    if (!user) {
+      setStats({
+        eventsAttended: 0,
+        serviceHours: 0,
+        groupsJoined: 0,
+        connections: 0,
+        loading: false,
+        error: null,
+        schemaPending: false,
+      });
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadStats() {
+      if (!user) return;
+      setStats((prev) => ({ ...prev, loading: true, error: null }));
+      try {
+        let events = 0;
+        let hours = 0;
+        let groups = 0;
+        let connections = 0;
+        let missingTables: string[] = [];
+
+        // 1. Groups Joined (group_memberships count scoped to user.id)
+        const groupsRes = await supabase
+          .from("group_memberships")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id);
+
+        if (groupsRes.error) {
+          if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(groupsRes.error.message)) {
+            missingTables.push("group_memberships");
+          } else {
+            console.error("Failed to query group_memberships:", groupsRes.error.message);
+          }
+        } else if (groupsRes.count !== null && groupsRes.count !== undefined) {
+          groups = groupsRes.count;
+        }
+
+        // 2. Connections (user_connections count for accepted connections involving user)
+        const connRes = await supabase
+          .from("user_connections")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "accepted")
+          .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+
+        if (connRes.error) {
+          if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(connRes.error.message)) {
+            missingTables.push("user_connections");
+          } else {
+            console.error("Failed to query user_connections:", connRes.error.message);
+          }
+        } else if (connRes.count !== null && connRes.count !== undefined) {
+          connections = connRes.count;
+        }
+
+        // 3. Events Attended (event_attendance verified records scoped to user.id)
+        const eventRes = await supabase
+          .from("event_attendance")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("verified", true);
+
+        if (eventRes.error) {
+          if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(eventRes.error.message)) {
+            missingTables.push("event_attendance");
+          } else {
+            console.error("Failed to query event_attendance:", eventRes.error.message);
+          }
+        } else if (eventRes.count !== null && eventRes.count !== undefined) {
+          events = eventRes.count;
+        }
+
+        // 4. Community Service Hours (approved hours sum from community_service_records)
+        const hoursRes = await supabase
+          .from("community_service_records")
+          .select("hours")
+          .eq("user_id", user.id)
+          .eq("status", "approved");
+
+        if (hoursRes.error) {
+          if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(hoursRes.error.message)) {
+            missingTables.push("community_service_records");
+          } else {
+            console.error("Failed to query community_service_records:", hoursRes.error.message);
+          }
+        } else if (hoursRes.data) {
+          hours = (hoursRes.data as { hours: number | null }[]).reduce((acc: number, row) => acc + (Number(row.hours) || 0), 0);
+        }
+
+        if (!cancelled) {
+          setStats({
+            eventsAttended: events,
+            serviceHours: hours,
+            groupsJoined: groups,
+            connections: connections,
+            loading: false,
+            error: null,
+            schemaPending: missingTables.length > 0,
+          });
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setStats((prev) => ({
+            ...prev,
+            loading: false,
+            error: err?.message ?? "Error querying statistics",
+          }));
+        }
+      }
+    }
+
+    void loadStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   function handleAvatarFileSelected(file: File) {
     setCropFile(file);
@@ -1175,74 +1319,93 @@ function ProfilePage() {
 
   function startEditingProfile() {
     setEditFullName(fullName);
-    setEditHeadline(profile?.headline ?? "");
+    setEditHeadline(headline);
+    setUploadErr(null);
     setIsEditing(true);
   }
 
+  // Synchronize drafts with current values whenever editing starts
+  useEffect(() => {
+    if (isEditing) {
+      setEditFullName(fullName);
+      setEditHeadline(headline);
+    }
+  }, [isEditing]);
+
   // Upload avatar/banner and save profile name and headline on Done
   async function handleDone() {
-    if (!user) { setIsEditing(false); return; }
     setSaving(true);
     setUploadErr(null);
     let succeeded = false;
     try {
       const trimmedName = editFullName.trim();
       const trimmedHeadline = editHeadline.trim();
-      const profileUpdates: {
-        full_name?: string;
-        headline?: string | null;
-        avatar_url?: string;
-        banner_url?: string;
-      } = {};
 
-      if (trimmedName && trimmedName !== fullName) {
-        profileUpdates.full_name = trimmedName;
-        // Keep auth metadata in sync with profile full_name
+      if (!trimmedName) {
+        throw new Error("Display name cannot be blank.");
+      }
+
+      if (user) {
+        const profileUpdates: {
+          id: string;
+          full_name: string;
+          headline: string | null;
+          avatar_url?: string;
+          banner_url?: string;
+          updated_at?: string;
+        } = {
+          id: user.id,
+          full_name: trimmedName,
+          headline: trimmedHeadline || null,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (pendingAvatarBlob) {
+          const path = `${user.id}/avatar-${Date.now()}.jpg`;
+          const { error: upErr } = await supabase.storage.from("avatars").upload(path, pendingAvatarBlob, { contentType: "image/jpeg" });
+          if (upErr) throw upErr;
+          const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+          const url = data.publicUrl;
+          setAvatarUrl(url);
+          profileUpdates.avatar_url = url;
+        }
+        if (pendingBannerBlob) {
+          const path = `${user.id}/banner-${Date.now()}.jpg`;
+          const { error: upErr } = await supabase.storage.from("banners").upload(path, pendingBannerBlob, { contentType: "image/jpeg" });
+          if (upErr) throw upErr;
+          const { data } = supabase.storage.from("banners").getPublicUrl(path);
+          const url = data.publicUrl;
+          setBannerUrl(url);
+          profileUpdates.banner_url = url;
+        }
+
+        // Upsert to profiles table so update succeeds even if row was freshly initialized
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .upsert(profileUpdates, { onConflict: "id" });
+        if (updateError) throw updateError;
+
+        // Keep Supabase auth user metadata in sync with profile full_name
         await supabase.auth.updateUser({
           data: { full_name: trimmedName },
         });
+
+        await refreshProfile();
       }
 
-      if (trimmedHeadline !== (profile?.headline ?? "")) {
-        profileUpdates.headline = trimmedHeadline || null;
-      }
-
-      if (pendingAvatarBlob) {
-        const path = `${user.id}/avatar-${Date.now()}.jpg`;
-        const { error: upErr } = await supabase.storage.from("avatars").upload(path, pendingAvatarBlob, { contentType: "image/jpeg" });
-        if (upErr) throw upErr;
-        const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-        const url = data.publicUrl;
-        setAvatarUrl(url);
-        profileUpdates.avatar_url = url;
-      }
-      if (pendingBannerBlob) {
-        const path = `${user.id}/banner-${Date.now()}.jpg`;
-        const { error: upErr } = await supabase.storage.from("banners").upload(path, pendingBannerBlob, { contentType: "image/jpeg" });
-        if (upErr) throw upErr;
-        const { data } = supabase.storage.from("banners").getPublicUrl(path);
-        const url = data.publicUrl;
-        setBannerUrl(url);
-        profileUpdates.banner_url = url;
-      }
-
-      if (Object.keys(profileUpdates).length > 0) {
-        const { error } = await supabase.from("profiles").update(profileUpdates).eq("id", user.id);
-        if (error) throw error;
-      }
-
-      await refreshProfile();
+      setSavedName(trimmedName);
+      setSavedHeadline(trimmedHeadline || "");
       succeeded = true;
     } catch (e: any) {
       setUploadErr(e?.message ?? "Save failed — please try again.");
+    } finally {
+      if (pendingAvatarPreview) URL.revokeObjectURL(pendingAvatarPreview);
+      if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
+      setPendingAvatarBlob(null); setPendingAvatarPreview(null);
+      setPendingBannerBlob(null); setPendingBannerPreview(null);
+      setSaving(false);
+      if (succeeded) setIsEditing(false);
     }
-    // Always clean up blob previews; only close editor on success
-    if (pendingAvatarPreview) URL.revokeObjectURL(pendingAvatarPreview);
-    if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
-    setPendingAvatarBlob(null); setPendingAvatarPreview(null);
-    setPendingBannerBlob(null); setPendingBannerPreview(null);
-    setSaving(false);
-    if (succeeded) setIsEditing(false);
   }
 
   // Discard local previews and input drafts on Cancel
@@ -1252,7 +1415,8 @@ function ProfilePage() {
     setPendingAvatarBlob(null); setPendingAvatarPreview(null);
     setPendingBannerBlob(null); setPendingBannerPreview(null);
     setEditFullName(fullName);
-    setEditHeadline(profile?.headline ?? "");
+    setEditHeadline(headline);
+    setUploadErr(null);
     setIsEditing(false);
   }
 
@@ -1304,10 +1468,16 @@ function ProfilePage() {
   }
 
   const fullName =
+    savedName ??
     profile?.full_name ??
     user?.user_metadata?.full_name ??
     user?.email?.split("@")[0] ??
     "Community Member";
+
+  const headline =
+    savedHeadline !== null
+      ? savedHeadline
+      : (profile?.headline ?? "");
 
   const rawUsername =
     profile?.username ??
@@ -1317,7 +1487,6 @@ function ProfilePage() {
   const username = rawUsername ?? (user ? `user${user.id.replace(/-/g, "").slice(0, 8)}` : null);
 
   const initial = fullName.charAt(0).toUpperCase();
-  const statUnavailable = "Not available yet";
   const location = userLocation || profile?.location || "";
   const joinDate = user?.created_at ? new Date(user.created_at) : null;
   const joinMonth = joinDate ? joinDate.toLocaleString("default", { month: "long" }) : "January";
@@ -1331,7 +1500,6 @@ function ProfilePage() {
     (Array.isArray(rawLinks) ? rawLinks as { label: string; url: string }[] : []).filter((l) => l?.url?.trim());
   const rawSkills = user?.user_metadata?.skills;
   const displaySkills: string[] = Array.isArray(rawSkills) ? rawSkills as string[] : [];
-  const passSkills = Array.isArray(profile?.selected_skills) ? profile.selected_skills : displaySkills;
 
   const passProfileUrl = typeof window === "undefined"
     ? ""
@@ -1399,12 +1567,12 @@ function ProfilePage() {
       pdf.setFont("helvetica", "bold");
       pdf.text("MYCOMMNET", 30, 33);
       pdf.setTextColor(255, 255, 255);
-      pdf.text("· COMMUNITY PASS", 62, 33);
+      pdf.text("· COMMUNITY MEMBER PASS", 62, 33);
 
       pdf.setFontSize(8);
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(216, 180, 254);
-      pdf.text("VERIFIED MEMBER CREDENTIAL & QR ACCESS", 30, 41);
+      pdf.text("Shareable profile and QR access", 30, 41);
 
       // Member Name
       pdf.setTextColor(255, 255, 255);
@@ -1424,11 +1592,11 @@ function ProfilePage() {
 
       // Member headline or community role
       let currentY = 76;
-      if (profile?.headline) {
+      if (headline) {
         pdf.setFontSize(11);
         pdf.setFont("helvetica", "bold");
         pdf.setTextColor(79, 219, 200); // Teal
-        pdf.text(profile.headline, 30, currentY, { maxWidth: 115 });
+        pdf.text(headline, 30, currentY, { maxWidth: 115 });
         currentY += 7;
       }
 
@@ -1444,30 +1612,42 @@ function ProfilePage() {
 
       // QR Code container (white card)
       pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(35, 96, 140, 126, 4, 4, "F");
-      pdf.addImage(qrDataUrl, "PNG", 50, 101, 110, 110, undefined, "NONE");
+      pdf.roundedRect(35, 93, 140, 124, 4, 4, "F");
+      pdf.addImage(qrDataUrl, "PNG", 50, 97, 110, 110, undefined, "NONE");
       pdf.setTextColor(15, 23, 42);
       pdf.setFontSize(8);
       pdf.setFont("helvetica", "bold");
-      pdf.text("Scan to view shareable profile & verify credentials", 105, 217, { align: "center" });
+      pdf.text("Scan to view shareable profile & community connections", 105, 213, { align: "center" });
 
-      // Verification / Activity records section
-      pdf.setTextColor(203, 195, 215);
-      pdf.setFontSize(8.5);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("VERIFIED ACTIVITY & ATTENDANCE", 30, 234);
+      // 4 Statistics Cards
+      const statBoxes = [
+        { label: "EVENTS ATTENDED", value: String(stats.eventsAttended), x: 26, y: 224 },
+        { label: "SERVICE HOURS", value: String(stats.serviceHours), x: 65, y: 224 },
+        { label: "GROUPS JOINED", value: String(stats.groupsJoined), x: 104, y: 224 },
+        { label: "CONNECTIONS", value: String(stats.connections), x: 143, y: 224 },
+      ];
 
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8);
-      pdf.setTextColor(148, 163, 184);
-      pdf.text("Attendance & Service Hours: Not available yet (verification records pending)", 30, 240);
-      pdf.text("Verified activity requires confirmed check-in records from community events.", 30, 245);
+      for (const box of statBoxes) {
+        pdf.setFillColor(25, 33, 65);
+        pdf.roundedRect(box.x, box.y, 37, 20, 2.5, 2.5, "F");
+        pdf.setTextColor(203, 195, 215);
+        pdf.setFontSize(6.5);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(box.label, box.x + 18.5, box.y + 6.5, { align: "center" });
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(box.value, box.x + 18.5, box.y + 15, { align: "center" });
+      }
 
       // Card footer
+      pdf.setFont("helvetica", "normal");
       pdf.setFontSize(7.5);
       pdf.setTextColor(100, 116, 139);
-      pdf.text(passProfileUrl, 105, 266, { align: "center", maxWidth: 150 });
-      pdf.text("Issued by MyCommNet · Atlanta Community Network", 105, 271, { align: "center" });
+      pdf.text(passProfileUrl, 105, 256, { align: "center", maxWidth: 150 });
+      pdf.setTextColor(203, 195, 215);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("MyCommNet Community Platform", 105, 263, { align: "center" });
 
       const blob = pdf.output("blob");
       setPassQrUrl(qrDataUrl);
@@ -1723,8 +1903,8 @@ function ProfilePage() {
                   <Shield className="h-3.5 w-3.5 text-brand-teal" />
                   <span>Community Pass</span>
                 </div>
-                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-medium text-white/90">
-                  Member Credential
+                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90">
+                  COMMUNITY MEMBER PASS
                 </span>
               </div>
               <div className="mt-4 flex items-center gap-3">
@@ -1737,37 +1917,62 @@ function ProfilePage() {
                 )}
                 <div className="min-w-0">
                   <h2 className="font-display text-xl font-bold truncate">{fullName}</h2>
-                  {profile?.headline ? (
-                    <p className="text-xs font-medium text-brand-teal truncate">{profile.headline}</p>
+                  {headline ? (
+                    <p className="text-xs font-medium text-brand-teal truncate">{headline}</p>
                   ) : (
                     <p className="text-xs text-white/70">Community Member</p>
                   )}
                   {username && <p className="text-[11px] text-white/60 truncate">@{username}</p>}
                 </div>
               </div>
-              <div className="mt-5 flex items-end justify-between gap-4">
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <p className="text-[11px] text-white/60">Verified hours</p>
-                    <p className="font-display text-sm font-bold text-white/90">{statUnavailable}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-white/60">Events attended</p>
-                    <p className="font-display text-sm font-bold text-white/90">{statUnavailable}</p>
-                  </div>
-                  <p className="text-[10px] text-white/50 leading-tight">Activity records pending verified host check-ins</p>
+
+              {/* 4 Statistics Holders */}
+              <div className="mt-4 grid grid-cols-2 gap-2 text-left">
+                <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-sm border border-white/10">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/75">Events Attended</p>
+                  <p className="font-display text-lg font-bold text-white mt-0.5">{stats.eventsAttended}</p>
+                </div>
+                <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-sm border border-white/10">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/75">Service Hours</p>
+                  <p className="font-display text-lg font-bold text-white mt-0.5">{stats.serviceHours}</p>
+                </div>
+                <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-sm border border-white/10">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/75">Groups Joined</p>
+                  <p className="font-display text-lg font-bold text-white mt-0.5">{stats.groupsJoined}</p>
+                </div>
+                <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-sm border border-white/10">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/75">Connections</p>
+                  <p className="font-display text-lg font-bold text-white mt-0.5">{stats.connections}</p>
+                </div>
+              </div>
+
+              {stats.schemaPending && (
+                <p className="mt-2 text-[10px] text-white/60 flex items-center gap-1">
+                  <span>ℹ️ Activity records connected to Supabase (social schema pending deployment)</span>
+                </p>
+              )}
+              {stats.error && !stats.schemaPending && (
+                <p className="mt-2 text-[10px] text-red-200 flex items-center gap-1">
+                  <span>⚠️ {stats.error}</span>
+                </p>
+              )}
+
+              <div className="mt-4 flex items-center justify-between gap-3 pt-3 border-t border-white/15">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-white/90">Shareable profile and QR access</p>
+                  <p className="text-[11px] text-white/60 truncate">Click QR to preview, download, or print pass</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => void openCommunityPass()}
                   aria-label="Open Community Pass PDF and print options"
                   title="Click to preview & print PDF Pass"
-                  className="group flex flex-col items-center justify-center rounded-2xl bg-white p-2.5 text-slate-900 shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white shrink-0"
+                  className="group flex flex-col items-center justify-center rounded-2xl bg-white p-2 text-slate-900 shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white shrink-0"
                 >
                   {passQrUrl ? (
-                    <img src={passQrUrl} alt="QR code" className="h-16 w-16" />
+                    <img src={passQrUrl} alt="QR code" className="h-14 w-14" />
                   ) : (
-                    <QrCode className="h-16 w-16 text-brand-purple" aria-hidden="true" />
+                    <QrCode className="h-14 w-14 text-brand-purple" aria-hidden="true" />
                   )}
                   <span className="mt-1 text-[9px] font-bold uppercase tracking-wider text-brand-purple">
                     View Pass
@@ -2009,9 +2214,9 @@ function ProfilePage() {
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Verified hours", value: statUnavailable, icon: Award },
-              { label: "Groups", value: statUnavailable, icon: Heart },
-              { label: "Connections", value: statUnavailable, icon: LinkIcon },
+              { label: "Community hours", value: stats.serviceHours, icon: Award },
+              { label: "Groups", value: stats.groupsJoined, icon: Heart },
+              { label: "Connections", value: stats.connections, icon: LinkIcon },
             ].map((s) => {
               const Icon = s.icon;
               return (
@@ -2066,10 +2271,10 @@ function ProfilePage() {
               <div>
                 <h2 id="community-pass-title" className="font-display text-lg font-semibold flex items-center gap-2">
                   <Shield className="h-4 w-4 text-brand-teal" />
-                  <span>Community Pass</span>
+                  <span>COMMUNITY MEMBER PASS</span>
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Official member credential with verified QR code
+                  Shareable profile and QR access
                 </p>
               </div>
               <button
@@ -2139,7 +2344,7 @@ function ProfilePage() {
             {/* Modal Footer Actions */}
             <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-border/60 px-5 py-3.5 bg-surface">
               <span className="text-[11px] text-muted-foreground hidden md:inline">
-                MyCommNet Community Pass · Atlanta Community Network
+                MyCommNet Community Pass · MyCommNet Community Platform
               </span>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {passPdfUrl && (
