@@ -38,6 +38,8 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
+import jsPDF from "jspdf";
+import QRCode from "qrcode";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -420,7 +422,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
         goal_type: definition.key.includes("training") || definition.key.includes("education") ? "learning" : "community",
         completion_requirement: definition.description,
         target_date: null,
-        completion_context: "mycommnet",
+        completion_context: "mycommnet_supported",
         action_label: definition.actionLabel,
         action_route: definition.actionRoute,
         status: "active",
@@ -468,7 +470,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
           goal_type: customGoal.goalType,
           completion_requirement: requirement,
           target_date: customGoal.targetDate || null,
-          completion_context: customGoal.context === "mycommnet_supported" ? "mycommnet" : customGoal.context,
+          completion_context: customGoal.context,
           action_label: actionLabel,
           action_route: actionRoute,
           updated_at: new Date().toISOString(),
@@ -1097,6 +1099,11 @@ function ProfilePage() {
   const [editingAbout, setEditingAbout] = useState(false);
   const [editingLinks, setEditingLinks] = useState(false);
   const [editingSkills, setEditingSkills] = useState(false);
+  const [passOpen, setPassOpen] = useState(false);
+  const [passBusy, setPassBusy] = useState(false);
+  const [passError, setPassError] = useState<string | null>(null);
+  const [passPdfUrl, setPassPdfUrl] = useState<string | null>(null);
+  const [passQrUrl, setPassQrUrl] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -1268,6 +1275,87 @@ function ProfilePage() {
     (Array.isArray(rawLinks) ? rawLinks as { label: string; url: string }[] : []).filter((l) => l?.url?.trim());
   const rawSkills = user?.user_metadata?.skills;
   const displaySkills: string[] = Array.isArray(rawSkills) ? rawSkills as string[] : [];
+
+  const passProfileUrl = typeof window === "undefined"
+    ? ""
+    : `${window.location.origin}${import.meta.env.BASE_URL}share/${encodeURIComponent(username ?? "")}`;
+
+  useEffect(() => {
+    if (!passProfileUrl) return;
+    let cancelled = false;
+    void QRCode.toDataURL(passProfileUrl, {
+      errorCorrectionLevel: "H",
+      margin: 4,
+      width: 900,
+      color: { dark: "#111827", light: "#ffffff" },
+    }).then((qrDataUrl) => {
+      if (!cancelled) setPassQrUrl(qrDataUrl);
+    }).catch(() => {
+      if (!cancelled) setPassError("The QR code could not be generated.");
+    });
+    return () => { cancelled = true; };
+  }, [passProfileUrl]);
+
+  async function openCommunityPass() {
+    if (!passProfileUrl) return;
+    setPassOpen(true);
+    setPassBusy(true);
+    setPassError(null);
+    if (passPdfUrl) URL.revokeObjectURL(passPdfUrl);
+    setPassPdfUrl(null);
+    try {
+      const qrDataUrl = passQrUrl ?? await QRCode.toDataURL(passProfileUrl, {
+        errorCorrectionLevel: "H",
+        margin: 4,
+        width: 900,
+        color: { dark: "#111827", light: "#ffffff" },
+      });
+      const pdf = new jsPDF({ unit: "mm", format: "a4" });
+      pdf.setFillColor(248, 250, 252);
+      pdf.rect(0, 0, 210, 297, "F");
+      pdf.setFillColor(91, 33, 182);
+      pdf.roundedRect(20, 20, 170, 257, 8, 8, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(11);
+      pdf.text("MYCOMMNET · COMMUNITY PASS", 30, 38);
+      pdf.setFontSize(24);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(fullName, 30, 58, { maxWidth: 150 });
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(12);
+      if (username) pdf.text(`@${username}`, 30, 68);
+      pdf.setTextColor(229, 231, 235);
+      pdf.setFontSize(11);
+      pdf.text("Community Member", 30, 78);
+      pdf.setFillColor(255, 255, 255);
+      pdf.roundedRect(35, 92, 140, 140, 4, 4, "F");
+      pdf.addImage(qrDataUrl, "PNG", 43, 100, 124, 124, undefined, "NONE");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(9);
+      pdf.text("Scan to view this shareable profile", 105, 247, { align: "center" });
+      pdf.setFontSize(8);
+      pdf.text(passProfileUrl, 105, 257, { align: "center", maxWidth: 145 });
+      const blob = pdf.output("blob");
+      setPassQrUrl(qrDataUrl);
+      setPassPdfUrl(URL.createObjectURL(blob));
+    } catch (error) {
+      setPassError(error instanceof Error ? error.message : "The Community Pass PDF could not be generated.");
+    } finally {
+      setPassBusy(false);
+    }
+  }
+
+  function closeCommunityPass() {
+    if (passPdfUrl) URL.revokeObjectURL(passPdfUrl);
+    setPassPdfUrl(null);
+    setPassOpen(false);
+  }
+
+  function printCommunityPass() {
+    if (!passPdfUrl) return;
+    const printWindow = window.open(passPdfUrl, "_blank", "noopener,noreferrer");
+    printWindow?.addEventListener("load", () => printWindow.print(), { once: true });
+  }
 
   return (
     <AppShell>
@@ -1467,9 +1555,14 @@ function ProfilePage() {
                     <p className="font-display text-xl font-bold">{eventsAttended}</p>
                   </div>
                 </div>
-                <div className="grid h-20 w-20 place-items-center rounded-2xl bg-white text-brand-purple">
-                  <QrCode className="h-14 w-14" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => void openCommunityPass()}
+                  aria-label="Open your Community Pass PDF"
+                  className="grid h-20 w-20 place-items-center rounded-2xl bg-white text-brand-purple transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  {passQrUrl ? <img src={passQrUrl} alt="QR code for your shareable profile" className="h-16 w-16" /> : <QrCode className="h-14 w-14" aria-hidden="true" />}
+                </button>
               </div>
             </div>
           </section>
@@ -1748,6 +1841,56 @@ function ProfilePage() {
           </section>
         </div>
       </div>
+      {passOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="community-pass-title">
+          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+              <div>
+                <h2 id="community-pass-title" className="font-display text-lg font-semibold">Community Pass</h2>
+                <p className="text-xs text-muted-foreground">Your private preview uses the same profile URL as the QR code.</p>
+              </div>
+              <button type="button" onClick={closeCommunityPass} className="rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground">Close</button>
+            </div>
+            <div className="min-h-0 overflow-y-auto p-5">
+              {passBusy && <p className="py-12 text-center text-sm text-muted-foreground">Preparing your pass…</p>}
+              {passError && (
+                <div className="space-y-4 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-100">
+                  <p>We couldn’t generate the PDF preview: {passError}</p>
+                  {passQrUrl && (
+                    <div className="mx-auto max-w-sm rounded-xl bg-white p-5 text-center text-slate-900">
+                      <p className="font-semibold">{fullName}</p>
+                      {username && <p className="text-sm text-slate-500">@{username}</p>}
+                      <img src={passQrUrl} alt="QR code for your shareable profile" className="mx-auto my-4 aspect-square w-64" />
+                      <p className="break-all text-xs">{passProfileUrl}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!passBusy && !passError && passPdfUrl && (
+                <>
+                  <iframe title="Community Pass PDF preview" src={passPdfUrl} className="h-[58vh] min-h-[360px] w-full rounded-xl border border-border bg-white" />
+                  <div className="mt-4 rounded-xl border border-border/60 bg-white p-5 text-center text-slate-900">
+                    <p className="font-semibold">{fullName}</p>
+                    {username && <p className="text-sm text-slate-500">@{username}</p>}
+                    {passQrUrl && <img src={passQrUrl} alt="QR code for your shareable profile" className="mx-auto my-3 aspect-square w-48" />}
+                    <p className="break-all text-xs">{passProfileUrl}</p>
+                    <p className="mt-2 text-[11px] text-slate-500">If your device cannot embed PDFs, use this pass to scan the QR directly.</p>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-5 py-4">
+              {passPdfUrl && (
+                <>
+                  <a href={passPdfUrl} download={`${username ?? "community"}-pass.pdf`} className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2">Download PDF</a>
+                  <button type="button" onClick={printCommunityPass} className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2">Print</button>
+                </>
+              )}
+              <button type="button" onClick={closeCommunityPass} className="rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white hover:brightness-110">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
