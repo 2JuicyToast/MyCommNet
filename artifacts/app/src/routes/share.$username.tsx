@@ -7,6 +7,9 @@ type SharedProfile = {
   full_name: string | null;
   bio: string | null;
   avatar_url: string | null;
+  headline: string | null;
+  pass_intro: string | null;
+  skills: string[] | null;
 };
 
 export const Route = createFileRoute("/share/$username")({
@@ -29,7 +32,7 @@ function SharedProfilePage() {
     let active = true;
     void supabase
       .from("shared_profiles")
-      .select("username, full_name, bio, avatar_url")
+      .select("username, full_name, bio, avatar_url, headline, pass_intro, skills")
       .eq("username", username)
       .maybeSingle()
       .then(({ data, error: queryError }) => {
@@ -62,7 +65,13 @@ function SharedProfilePage() {
             )}
             <h2 className="mt-5 font-display text-2xl font-bold">{profile.full_name ?? profile.username}</h2>
             <p className="mt-1 text-sm text-muted-foreground">@{profile.username}</p>
-            {profile.bio && <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{profile.bio}</p>}
+            {profile.headline && <p className="mt-3 text-sm font-medium text-brand-teal">{profile.headline}</p>}
+            {(profile.pass_intro || profile.bio) && <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{profile.pass_intro || profile.bio}</p>}
+            {profile.skills && profile.skills.length > 0 && (
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                {profile.skills.map((skill) => <span key={skill} className="rounded-full bg-surface-2 px-2.5 py-1 text-xs text-muted-foreground">{skill}</span>)}
+              </div>
+            )}
           </article>
         ) : null}
       </div>

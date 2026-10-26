@@ -34,6 +34,7 @@ import {
   Loader2,
   CalendarDays,
   Pencil,
+  Eye,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -79,6 +80,22 @@ const SKILL_SUGGESTIONS = [
 // ── Link helpers ─────────────────────────────────────────────────────────────
 
 type ProfileLink = { id: string; label: string; url: string };
+
+async function imageUrlToDataUrl(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
 
 function getLinkIcon(url: string): React.ComponentType<{ className?: string }> {
   try {
@@ -1099,6 +1116,15 @@ function ProfilePage() {
   const [editingAbout, setEditingAbout] = useState(false);
   const [editingLinks, setEditingLinks] = useState(false);
   const [editingSkills, setEditingSkills] = useState(false);
+  const [editingPass, setEditingPass] = useState(false);
+  const [passSaving, setPassSaving] = useState(false);
+  const [passSaveError, setPassSaveError] = useState<string | null>(null);
+  const [passSaveSuccess, setPassSaveSuccess] = useState(false);
+  const [passName, setPassName] = useState("");
+  const [passSkillsText, setPassSkillsText] = useState("");
+  const [passHeadline, setPassHeadline] = useState("");
+  const [passIntro, setPassIntro] = useState("");
+  const [passVisibility, setPassVisibility] = useState({ headline: true, intro: true, skills: true, stats: false });
   const [passOpen, setPassOpen] = useState(false);
   const [passBusy, setPassBusy] = useState(false);
   const [passError, setPassError] = useState<string | null>(null);
@@ -1260,8 +1286,7 @@ function ProfilePage() {
   const username = rawUsername ?? (user ? `user${user.id.replace(/-/g, "").slice(0, 8)}` : null);
 
   const initial = fullName.charAt(0).toUpperCase();
-  const verifiedHours = profile?.verified_hours ?? 36;
-  const eventsAttended = profile?.events_attended ?? 12;
+  const statUnavailable = "Not available yet";
   const location = userLocation || profile?.location || "";
   const joinDate = user?.created_at ? new Date(user.created_at) : null;
   const joinMonth = joinDate ? joinDate.toLocaleString("default", { month: "long" }) : "January";
@@ -1275,6 +1300,39 @@ function ProfilePage() {
     (Array.isArray(rawLinks) ? rawLinks as { label: string; url: string }[] : []).filter((l) => l?.url?.trim());
   const rawSkills = user?.user_metadata?.skills;
   const displaySkills: string[] = Array.isArray(rawSkills) ? rawSkills as string[] : [];
+  const passSkills = Array.isArray(profile?.selected_skills) ? profile.selected_skills : displaySkills;
+
+  function beginPassEdit() {
+    setPassName(fullName);
+    setPassSkillsText(passSkills.join(", "));
+    setPassHeadline(profile?.headline ?? "");
+    setPassIntro(profile?.pass_intro ?? "");
+    setPassVisibility({ headline: profile?.pass_visibility?.headline ?? true, intro: profile?.pass_visibility?.intro ?? true, skills: profile?.pass_visibility?.skills ?? true, stats: profile?.pass_visibility?.stats ?? false });
+    setPassSaveError(null);
+    setPassSaveSuccess(false);
+    setEditingPass(true);
+  }
+
+  async function savePassSettings() {
+    if (!user) return;
+    setPassSaving(true);
+    setPassSaveError(null);
+    setPassSaveSuccess(false);
+    const { error } = await supabase.from("profiles").update({
+      full_name: passName.trim(),
+      headline: passHeadline.trim() || null,
+      pass_intro: passIntro.trim() || null,
+      selected_skills: passSkillsText.split(",").map((skill) => skill.trim()).filter(Boolean).slice(0, 20),
+      pass_visibility: passVisibility,
+    }).eq("id", user.id);
+    if (error) {
+      setPassSaveError(error.message);
+    } else {
+      await refreshProfile();
+      setPassSaveSuccess(true);
+    }
+    setPassSaving(false);
+  }
 
   const passProfileUrl = typeof window === "undefined"
     ? ""
@@ -1321,20 +1379,37 @@ function ProfilePage() {
       pdf.setFontSize(24);
       pdf.setFont("helvetica", "bold");
       pdf.text(fullName, 30, 58, { maxWidth: 150 });
+      if (avatarUrl) {
+        const avatarDataUrl = await imageUrlToDataUrl(avatarUrl);
+        if (avatarDataUrl) pdf.addImage(avatarDataUrl, "JPEG", 158, 42, 24, 24);
+      }
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(12);
       if (username) pdf.text(`@${username}`, 30, 68);
       pdf.setTextColor(229, 231, 235);
       pdf.setFontSize(11);
       pdf.text("Community Member", 30, 78);
+      if (profile?.headline && passVisibility.headline) {
+        pdf.setFontSize(10);
+        pdf.text(profile.headline, 30, 86, { maxWidth: 145 });
+      }
+      if (profile?.pass_intro && passVisibility.intro) {
+        pdf.setFontSize(9);
+        pdf.text(profile.pass_intro, 30, 92, { maxWidth: 145 });
+      }
+      pdf.setFontSize(9);
+      pdf.text(`Verified hours: ${statUnavailable}`, 30, 242);
+      pdf.text(`Events attended: ${statUnavailable}`, 30, 248);
+      pdf.text(`Groups: ${statUnavailable}`, 30, 254);
+      pdf.text(`Connections: ${statUnavailable}`, 30, 260);
       pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(35, 92, 140, 140, 4, 4, "F");
-      pdf.addImage(qrDataUrl, "PNG", 43, 100, 124, 124, undefined, "NONE");
+      pdf.roundedRect(35, 103, 140, 124, 4, 4, "F");
+      pdf.addImage(qrDataUrl, "PNG", 48, 108, 114, 114, undefined, "NONE");
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(9);
-      pdf.text("Scan to view this shareable profile", 105, 247, { align: "center" });
+      pdf.text("Scan to view this shareable profile", 105, 270, { align: "center" });
       pdf.setFontSize(8);
-      pdf.text(passProfileUrl, 105, 257, { align: "center", maxWidth: 145 });
+      pdf.text(passProfileUrl, 105, 280, { align: "center", maxWidth: 145 });
       const blob = pdf.output("blob");
       setPassQrUrl(qrDataUrl);
       setPassPdfUrl(URL.createObjectURL(blob));
@@ -1539,20 +1614,34 @@ function ProfilePage() {
             <div className="relative">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium uppercase tracking-wider text-white/80">Community Pass</p>
-                <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold">MyCom Card</span>
+                <button type="button" onClick={beginPassEdit} className="rounded-full bg-white/15 px-2 py-1 text-[10px] font-semibold hover:bg-white/25">Edit Community Pass</button>
               </div>
-              <h2 className="mt-4 font-display text-2xl font-bold">{fullName}</h2>
+              <div className="mt-4 flex items-center gap-3">
+                {avatarUrl && <img src={avatarUrl} alt="" className="h-12 w-12 rounded-xl object-cover ring-2 ring-white/40" />}
+                <div>
+                  <h2 className="font-display text-2xl font-bold">{fullName}</h2>
+                  {profile?.headline && passVisibility.headline && <p className="text-sm text-white/80">{profile.headline}</p>}
+                </div>
+              </div>
               {username && <p className="text-xs text-white/60">@{username}</p>}
-              <p className="text-sm text-white/80">Community Member</p>
+              <p className="mt-1 text-sm text-white/80">Community Member</p>
               <div className="mt-5 flex items-end justify-between gap-4">
-                <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                   <div>
                     <p className="text-white/60">Verified hours</p>
-                    <p className="font-display text-xl font-bold">{verifiedHours}</p>
+                    <p className="font-display text-sm font-bold">{statUnavailable}</p>
                   </div>
                   <div>
                     <p className="text-white/60">Events attended</p>
-                    <p className="font-display text-xl font-bold">{eventsAttended}</p>
+                    <p className="font-display text-sm font-bold">{statUnavailable}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/60">Groups</p>
+                    <p className="font-display text-sm font-bold">{statUnavailable}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/60">Connections</p>
+                    <p className="font-display text-sm font-bold">{statUnavailable}</p>
                   </div>
                 </div>
                 <button
@@ -1799,9 +1888,9 @@ function ProfilePage() {
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Verified hours", value: String(verifiedHours), icon: Award },
-              { label: "Groups", value: "8", icon: Heart },
-              { label: "Connections", value: "142", icon: LinkIcon },
+              { label: "Verified hours", value: statUnavailable, icon: Award },
+              { label: "Groups", value: statUnavailable, icon: Heart },
+              { label: "Connections", value: statUnavailable, icon: LinkIcon },
             ].map((s) => {
               const Icon = s.icon;
               return (
@@ -1841,6 +1930,30 @@ function ProfilePage() {
           </section>
         </div>
       </div>
+      {editingPass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-pass-title">
+          <form onSubmit={(event) => { event.preventDefault(); void savePassSettings(); }} className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div><h2 id="edit-pass-title" className="font-display text-lg font-semibold">Edit Community Pass</h2><p className="mt-1 text-xs text-muted-foreground">Name and photo reuse your main profile. Statistics are read-only and currently unavailable because verified activity tables are not implemented.</p></div>
+              <Eye className="h-5 w-5 text-brand-teal" aria-hidden="true" />
+            </div>
+            <div className="mt-5 space-y-4">
+              <label className="block text-xs"><span className="mb-1 block font-medium">Display name</span><input value={passName} onChange={(event) => setPassName(event.target.value)} required maxLength={120} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-brand-teal" /></label>
+              <label className="block text-xs"><span className="mb-1 block font-medium">Headline (optional)</span><input value={passHeadline} onChange={(event) => setPassHeadline(event.target.value)} maxLength={120} placeholder="Community volunteer" className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-brand-teal" /></label>
+              <label className="block text-xs"><span className="mb-1 block font-medium">Shareable introduction (optional)</span><textarea value={passIntro} onChange={(event) => setPassIntro(event.target.value)} maxLength={500} rows={3} placeholder="A short introduction for people who scan your pass." className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand-teal" /></label>
+              <label className="block text-xs"><span className="mb-1 block font-medium">Selected interests/skills (optional)</span><input value={passSkillsText} onChange={(event) => setPassSkillsText(event.target.value)} placeholder="Technology, Mentoring, Design" className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-brand-teal" /><span className="mt-1 block text-muted-foreground">Separate items with commas. This saves to your public pass profile, not private goals.</span></label>
+              <fieldset className="space-y-2 text-xs"><legend className="mb-1 font-medium">Show on your shareable profile</legend>
+                {(["headline", "intro", "skills"] as const).map((field) => <label key={field} className="flex items-center gap-2"><input type="checkbox" checked={passVisibility[field]} onChange={(event) => setPassVisibility((current) => ({ ...current, [field]: event.target.checked }))} /> {field === "intro" ? "Introduction" : field === "skills" ? "Selected skills" : "Headline"}</label>)}
+                <label className="flex items-center gap-2 text-muted-foreground"><input type="checkbox" checked={false} disabled /> Statistics (not available yet)</label>
+                <p className="pt-1 text-muted-foreground">The profile photo and username are always included. Verified statistics will not be shown until real activity records are available.</p>
+              </fieldset>
+            </div>
+            {passSaveError && <p className="mt-4 rounded-lg bg-red-400/10 px-3 py-2 text-xs text-red-200">{passSaveError}</p>}
+            {passSaveSuccess && <p className="mt-4 rounded-lg bg-brand-teal/10 px-3 py-2 text-xs text-brand-teal">Community Pass saved.</p>}
+            <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setEditingPass(false)} disabled={passSaving} className="rounded-lg border border-border px-3 py-2 text-xs">Cancel</button><button type="submit" disabled={passSaving} className="rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white">{passSaving ? "Saving…" : "Save"}</button></div>
+          </form>
+        </div>
+      )}
       {passOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="community-pass-title">
           <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-2xl">
