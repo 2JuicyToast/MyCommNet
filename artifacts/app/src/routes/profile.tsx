@@ -38,6 +38,7 @@ import {
   Download,
   Printer,
   AlertTriangle,
+  IdCard,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1166,7 +1167,17 @@ function ProfilePage() {
   useEffect(() => {
     if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
     if (profile?.banner_url) setBannerUrl(profile.banner_url);
-  }, [profile]);
+    if (user && profile && !profile.username) {
+      const fallbackUsername = `user${user.id.replace(/-/g, "").slice(0, 8)}`;
+      void supabase
+        .from("profiles")
+        .update({ username: fallbackUsername })
+        .eq("id", user.id)
+        .then(() => {
+          void refreshProfile();
+        });
+    }
+  }, [user, profile, refreshProfile]);
 
   // Connection records state
   type ConnectionRecord = {
@@ -1736,6 +1747,13 @@ function ProfilePage() {
     if (passPdfUrl) URL.revokeObjectURL(passPdfUrl);
     setPassPdfUrl(null);
     try {
+      // High-resolution dark-background white-module QR code for PDF
+      const pdfQrDataUrl = await QRCode.toDataURL(passProfileUrl, {
+        errorCorrectionLevel: "H",
+        margin: 4,
+        width: 900,
+        color: { dark: "#ffffff", light: "#0b132b" },
+      });
       const qrDataUrl = passQrUrl ?? await QRCode.toDataURL(passProfileUrl, {
         errorCorrectionLevel: "H",
         margin: 4,
@@ -1757,6 +1775,16 @@ function ProfilePage() {
       pdf.setFillColor(88, 28, 135);
       pdf.roundedRect(20, 20, 170, 36, 6, 6, "F");
       pdf.rect(20, 46, 170, 10, "F");
+
+      // Identification card icon in PDF header
+      pdf.setDrawColor(79, 219, 200); // Brand teal
+      pdf.setLineWidth(0.4);
+      pdf.roundedRect(23.5, 29, 5, 3.8, 0.6, 0.6, "S");
+      pdf.setFillColor(79, 219, 200);
+      pdf.rect(24.3, 29.8, 1.4, 1.8, "F");
+      pdf.setLineWidth(0.25);
+      pdf.line(26.2, 30.2, 27.5, 30.2);
+      pdf.line(26.2, 31.4, 27.5, 31.4);
 
       // MyCommNet header text
       pdf.setTextColor(79, 219, 200); // Brand teal
@@ -1807,14 +1835,20 @@ function ProfilePage() {
         pdf.text("Community Member", 30, currentY);
       }
 
-      // QR Code container (white card)
-      pdf.setFillColor(255, 255, 255);
+      // QR Code container (dark background card with high-contrast white modules)
+      pdf.setFillColor(11, 19, 43);
       pdf.roundedRect(35, 93, 140, 124, 4, 4, "F");
-      pdf.addImage(qrDataUrl, "PNG", 50, 97, 110, 110, undefined, "NONE");
-      pdf.setTextColor(15, 23, 42);
-      pdf.setFontSize(8);
+      pdf.addImage(pdfQrDataUrl, "PNG", 54, 96, 102, 102, undefined, "NONE");
+
+      // Clear thin horizontal line directly underneath QR code as visual separator
+      pdf.setDrawColor(79, 219, 200);
+      pdf.setLineWidth(0.3);
+      pdf.line(50, 203, 160, 203);
+
+      pdf.setTextColor(203, 195, 215);
+      pdf.setFontSize(7.5);
       pdf.setFont("helvetica", "bold");
-      pdf.text("Scan to view shareable profile & community connections", 105, 213, { align: "center" });
+      pdf.text("Scan to view shareable profile & community connections", 105, 210, { align: "center" });
 
       // Community Pass Statistics Cards: Events Attended & Service Hours (Connections & Groups Joined removed per specification)
       const statBoxes = [
@@ -2095,7 +2129,7 @@ function ProfilePage() {
             <div className="relative">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-white/90">
-                  <Shield className="h-3.5 w-3.5 text-brand-teal" />
+                  <IdCard className="h-3.5 w-3.5 text-brand-teal" />
                   <span>Community Pass</span>
                 </div>
                 <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90">
@@ -2681,7 +2715,7 @@ function ProfilePage() {
             <div className="flex items-center justify-between border-b border-border/60 px-5 py-4 bg-surface">
               <div>
                 <h2 id="community-pass-title" className="font-display text-lg font-semibold flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-brand-teal" />
+                  <IdCard className="h-4 w-4 text-brand-teal" />
                   <span>COMMUNITY MEMBER PASS</span>
                 </h2>
                 <p className="text-xs text-muted-foreground">

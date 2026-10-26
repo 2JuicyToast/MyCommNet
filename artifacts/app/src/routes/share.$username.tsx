@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Shield,
+  IdCard,
   ArrowLeft,
   Home,
   Loader2,
@@ -64,32 +64,78 @@ function SharedProfilePage() {
       setLoading(true);
       setNotFound(false);
       try {
-        // 1. Query shared_profiles view (case-insensitive lookup)
-        const { data: viewData, error: viewError } = await supabase
+        let viewData: any = null;
+
+        // 1. Try querying shared_profiles view with id included
+        const queryWithId = await supabase
           .from("shared_profiles")
-          .select("username, full_name, bio, avatar_url, headline, pass_intro, skills")
+          .select("id, username, full_name, bio, avatar_url, headline, pass_intro, skills")
           .ilike("username", cleanUsername)
           .maybeSingle();
 
-        // 2. Query profiles table by username as fallback
-        const { data: profileRow } = await supabase
-          .from("profiles")
-          .select("id, username, full_name, bio, avatar_url, headline")
-          .ilike("username", cleanUsername)
-          .maybeSingle();
+        if (queryWithId.error && queryWithId.error.message.includes("id does not exist")) {
+          // If view does not have id column yet, query without it
+          const queryWithoutId = await supabase
+            .from("shared_profiles")
+            .select("username, full_name, bio, avatar_url, headline, pass_intro, skills")
+            .ilike("username", cleanUsername)
+            .maybeSingle();
+          viewData = queryWithoutId.data;
+        } else {
+          viewData = queryWithId.data;
+        }
+
+        let resolvedProfile: SharedProfile | null = viewData ? (viewData as SharedProfile) : null;
+        let resolvedId: string | null = viewData?.id ?? null;
+
+        // 2. Fallback for authenticated user looking up their own profile or target
+        if (!resolvedProfile && user) {
+          const userFallbackUsername = `user${user.id.replace(/-/g, "").slice(0, 8)}`.toLowerCase();
+          if (cleanUsername.toLowerCase() === userFallbackUsername || cleanUsername.toLowerCase() === (user.user_metadata?.username ?? "").toLowerCase()) {
+            const { data: ownProfile } = await supabase
+              .from("profiles")
+              .select("id, username, full_name, bio, avatar_url, headline, pass_intro, selected_skills")
+              .eq("id", user.id)
+              .maybeSingle();
+
+            if (ownProfile) {
+              resolvedProfile = {
+                id: ownProfile.id,
+                username: ownProfile.username ?? cleanUsername,
+                full_name: ownProfile.full_name,
+                bio: ownProfile.bio,
+                avatar_url: ownProfile.avatar_url,
+                headline: ownProfile.headline,
+                pass_intro: ownProfile.pass_intro,
+                skills: ownProfile.selected_skills,
+              };
+              resolvedId = ownProfile.id;
+            }
+          } else {
+            // Check profiles table if caller has RLS permission
+            const { data: profileRow } = await supabase
+              .from("profiles")
+              .select("id, username, full_name, bio, avatar_url, headline")
+              .ilike("username", cleanUsername)
+              .maybeSingle();
+
+            if (profileRow) {
+              resolvedProfile = {
+                id: profileRow.id,
+                username: profileRow.username,
+                full_name: profileRow.full_name,
+                bio: profileRow.bio,
+                avatar_url: profileRow.avatar_url,
+                headline: profileRow.headline,
+                pass_intro: null,
+                skills: null,
+              };
+              resolvedId = profileRow.id;
+            }
+          }
+        }
 
         if (!active) return;
-
-        const resolvedProfile: SharedProfile | null = (viewData as SharedProfile) ?? (profileRow ? {
-          id: profileRow.id,
-          username: profileRow.username,
-          full_name: profileRow.full_name,
-          bio: profileRow.bio,
-          avatar_url: profileRow.avatar_url,
-          headline: profileRow.headline,
-          pass_intro: null,
-          skills: null,
-        } : null);
 
         if (!resolvedProfile) {
           setNotFound(true);
@@ -97,7 +143,6 @@ function SharedProfilePage() {
         }
 
         setProfile(resolvedProfile);
-        const resolvedId = profileRow?.id ?? (viewData as any)?.id ?? null;
         setProfileUserId(resolvedId);
 
         // 3. Check connection status if visitor is logged in and not looking at themselves
@@ -200,7 +245,7 @@ function SharedProfilePage() {
       <div className="mx-auto max-w-md">
         <div className="mb-6 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-teal flex items-center justify-center gap-1.5">
-            <Shield className="h-3.5 w-3.5" /> MyCommNet Community Pass
+            <IdCard className="h-3.5 w-3.5" /> MyCommNet Community Pass
           </p>
           <h1 className="mt-2 font-display text-2xl font-bold">Community Profile</h1>
         </div>
@@ -214,7 +259,7 @@ function SharedProfilePage() {
           /* Community Profile Not Found Card */
           <article className="rounded-3xl border border-border/60 bg-surface p-8 text-center shadow-xl">
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-surface-2 text-muted-foreground ring-1 ring-border/80 mb-4">
-              <Shield className="h-8 w-8 text-muted-foreground/60" />
+              <IdCard className="h-8 w-8 text-muted-foreground/60" />
             </div>
             <h2 className="font-display text-xl font-bold text-foreground">
               Community Profile Not Found
