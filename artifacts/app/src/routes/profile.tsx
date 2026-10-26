@@ -8,7 +8,7 @@ import {
   Link as LinkIcon,
   Bookmark,
   Award,
-  Calendar,
+  Calendar as CalendarIcon,
   Briefcase,
   GraduationCap,
   Heart,
@@ -32,7 +32,11 @@ import {
   Target,
   ExternalLink,
   Loader2,
+  CalendarDays,
+  Pencil,
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/profile")({
@@ -87,6 +91,7 @@ function getLinkIcon(url: string): React.ComponentType<{ className?: string }> {
 }
 type GoalStep = "discover" | "confirm";
 type GoalStatus = "active" | "completed";
+type GoalContext = "self" | "mycommnet_supported" | "in_app";
 
 type UserGoal = {
   id: string;
@@ -97,7 +102,7 @@ type UserGoal = {
   goal_type: string;
   completion_requirement: string;
   target_date: string | null;
-  completion_context: "self" | "mycommnet";
+  completion_context: GoalContext;
   action_label: string;
   action_route: "/map" | "/groups" | null;
   status: GoalStatus;
@@ -120,15 +125,17 @@ type GoalDefinition = {
 type CustomGoalDraft = {
   title: string;
   goalType: string;
+  description: string;
   requirement: string;
   targetDate: string;
-  context: "self" | "mycommnet";
+  context: GoalContext;
   feature: "map" | "groups";
 };
 
 const EMPTY_CUSTOM_GOAL: CustomGoalDraft = {
   title: "",
   goalType: "personal",
+  description: "",
   requirement: "",
   targetDate: "",
   context: "self",
@@ -137,22 +144,22 @@ const EMPTY_CUSTOM_GOAL: CustomGoalDraft = {
 
 const GOAL_DEFINITIONS: GoalDefinition[] = [
   {
-    key: "attend-community-event",
-    title: "Attend a community event",
-    description: "Find an event that interests you, then confirm after you attend it.",
-    actionLabel: "Find events",
+    key: "explore-community-space",
+    title: "Explore a community space",
+    description: "Find a local community center, then confirm when you have used it for your goal.",
+    actionLabel: "Find community spaces",
     actionRoute: "/map",
-    actionHint: "On the Map, choose Events to discover local opportunities.",
-    matchingTerms: ["community", "event", "arts", "culture", "sports", "volunteer"],
+    actionHint: "On the Map, choose Community centers to discover local spaces.",
+    matchingTerms: ["community", "local", "space", "resource"],
   },
   {
-    key: "find-job-training",
-    title: "Find job training",
-    description: "Discover a training provider and confirm when you have taken the next real-world step.",
-    actionLabel: "Find training",
+    key: "explore-education-resource",
+    title: "Explore an education resource",
+    description: "Find a library or education resource, then confirm your next real-world step.",
+    actionLabel: "Find education resources",
     actionRoute: "/map",
-    actionHint: "On the Map, choose Training to look for nearby providers.",
-    matchingTerms: ["career", "job", "training", "education", "skill", "school"],
+    actionHint: "On the Map, choose Libraries to discover local education resources.",
+    matchingTerms: ["career", "education", "skill", "school", "learning"],
   },
   {
     key: "find-local-resource",
@@ -160,7 +167,7 @@ const GOAL_DEFINITIONS: GoalDefinition[] = [
     description: "Locate a library, computer, Wi-Fi spot, or another resource that helps you move forward.",
     actionLabel: "Explore resources",
     actionRoute: "/map",
-    actionHint: "Use the Map to search libraries, community centers, and local resource categories.",
+    actionHint: "Use the Map to search libraries and community centers.",
     matchingTerms: ["resource", "library", "computer", "wifi", "access", "education"],
   },
   {
@@ -187,15 +194,59 @@ const GOAL_DEFINITIONS: GoalDefinition[] = [
     description: "Find a program or certification opportunity that fits your interests and confirm your next step.",
     actionLabel: "Find education resources",
     actionRoute: "/map",
-    actionHint: "Use the Map to explore libraries, education resources, and training options.",
+    actionHint: "Use the Map to explore libraries and education resources.",
     matchingTerms: ["education", "school", "training", "certification", "learning", "career"],
+  },
+];
+
+type HelpSuggestion = {
+  key: string;
+  title: string;
+  reason: string;
+  actionLabel: string;
+  actionRoute: "/map" | "/groups";
+  suggestedContext: GoalContext;
+  terms: string[];
+  categories: string[];
+};
+
+const HELP_SUGGESTIONS: HelpSuggestion[] = [
+  {
+    key: "community-centers",
+    title: "Explore community centers",
+    reason: "Community centers are an available Map category for local discovery.",
+    actionLabel: "Open the Map",
+    actionRoute: "/map",
+    suggestedContext: "mycommnet_supported",
+    terms: ["community center", "community", "local resource"],
+    categories: ["community"],
+  },
+  {
+    key: "education-libraries",
+    title: "Explore libraries and education resources",
+    reason: "Libraries are an available Map category for finding local education resources.",
+    actionLabel: "Open the Map",
+    actionRoute: "/map",
+    suggestedContext: "mycommnet_supported",
+    terms: ["library", "education", "course", "class", "certificate", "certification"],
+    categories: ["learning", "career"],
+  },
+  {
+    key: "mentoring-groups",
+    title: "Explore mentoring groups",
+    reason: "Groups includes a Mentoring category for discovering communities and conversations.",
+    actionLabel: "Explore Groups",
+    actionRoute: "/groups",
+    suggestedContext: "mycommnet_supported",
+    terms: ["mentor", "mentoring", "career guidance"],
+    categories: ["career", "community"],
   },
 ];
 
 const timeline = [
   { icon: Briefcase, title: "Volunteer Coordinator", org: "Bright Futures Org", date: "Mar 2026 — Present", body: "Coordinating outreach for weekly resource fairs across Atlanta." },
   { icon: GraduationCap, title: "Digital Skills Bootcamp", org: "Code for Tomorrow", date: "Jan 2026 — Apr 2026", body: "Hands-on intro to HTML/CSS, JavaScript, and Git workflows." },
-  { icon: Calendar, title: "Community Resource Fair", org: "Unity Collective", date: "Nov 2025", body: "Helped onboard 60+ residents to local services. Verified 8 hours." },
+  { icon: CalendarIcon, title: "Community Resource Fair", org: "Unity Collective", date: "Nov 2025", body: "Helped onboard 60+ residents to local services. Verified 8 hours." },
 ];
 const saved = [
   { label: "TechConnect Hub", type: "Resource" },
@@ -249,6 +300,77 @@ function orderedGoalDefinitions(prefs: UserPrefs | null): GoalDefinition[] {
   });
 }
 
+function suggestionMatchReason(goal: CustomGoalDraft, suggestion: HelpSuggestion): string {
+  if (suggestion.categories.includes(goal.goalType)) {
+    return `Suggested because your goal category is ${goal.goalType}. ${suggestion.reason}`;
+  }
+  const matchedTerm = suggestion.terms.find((term) => hasWholeWord(goalTextMatches(goal), term));
+  return matchedTerm
+    ? `Suggested because your goal mentions “${matchedTerm}”. ${suggestion.reason}`
+    : suggestion.reason;
+}
+
+function localDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isTodayOrLater(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= localDateKey();
+}
+
+function formatGoalDate(value: string | null): string {
+  if (!value) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return value;
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(year, month - 1, day));
+}
+
+function dateFromKey(value: string): Date | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function todayLocal(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function goalTextMatches(goal: CustomGoalDraft): string {
+  return `${goal.title} ${goal.description} ${goal.requirement}`.toLowerCase();
+}
+
+function hasWholeWord(text: string, phrase: string): boolean {
+  const escaped = phrase.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  return new RegExp(`(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, "i").test(text);
+}
+
+function matchingHelpSuggestions(goal: CustomGoalDraft): HelpSuggestion[] {
+  const text = goalTextMatches(goal);
+  return HELP_SUGGESTIONS.filter((suggestion) => {
+    const categoryMatch = suggestion.categories.includes(goal.goalType);
+    const keywordMatch = suggestion.terms.some((term) => hasWholeWord(text, term));
+    return categoryMatch || keywordMatch;
+  }).sort((a, b) => {
+    const categoryScore = (suggestion: HelpSuggestion) => suggestion.categories.includes(goal.goalType) ? 1 : 0;
+    return categoryScore(b) - categoryScore(a);
+  });
+
+function defaultDraftForGoal(goal: UserGoal): CustomGoalDraft {
+  return {
+    title: goal.title,
+    goalType: goal.goal_type || "personal",
+    description: goal.description === goal.completion_requirement ? "" : goal.description,
+    requirement: goal.completion_requirement || goal.description,
+    targetDate: goal.target_date ?? "",
+    context: goal.completion_context,
+    feature: goal.action_route === "/groups" ? "groups" : "map",
+  };
+}
+
 function GoalsInProgress({ userId }: { userId: string }) {
   const [goals, setGoals] = useState<UserGoal[]>([]);
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
@@ -257,6 +379,9 @@ function GoalsInProgress({ userId }: { userId: string }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customGoal, setCustomGoal] = useState<CustomGoalDraft>(EMPTY_CUSTOM_GOAL);
+  const [editingGoal, setEditingGoal] = useState<UserGoal | null>(null);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadGoals = async () => {
@@ -291,6 +416,10 @@ function GoalsInProgress({ userId }: { userId: string }) {
         goal_key: definition.key,
         title: definition.title,
         description: definition.description,
+        goal_type: definition.key.includes("training") || definition.key.includes("education") ? "learning" : "community",
+        completion_requirement: definition.description,
+        target_date: null,
+        completion_context: "mycommnet_supported",
         action_label: definition.actionLabel,
         action_route: definition.actionRoute,
         status: "active",
@@ -308,49 +437,65 @@ function GoalsInProgress({ userId }: { userId: string }) {
     setSaving(false);
   }
 
-  async function addCustomGoal(event: React.FormEvent<HTMLFormElement>) {
+  async function saveCustomGoal(event: React.FormEvent<HTMLFormElement>) {
       event.preventDefault();
       const title = customGoal.title.trim();
+      const description = customGoal.description.trim();
       const requirement = customGoal.requirement.trim();
       if (!title || !requirement) {
         setError("Add a goal name and a clear completion requirement.");
         return;
       }
+      if (customGoal.targetDate && !isTodayOrLater(customGoal.targetDate) && (!editingGoal || customGoal.targetDate !== editingGoal.target_date)) {
+        setError("Choose today or a later date.");
+        return;
+      }
 
       setSaving(true);
       setError(null);
-      const actionRoute = customGoal.context === "mycommnet" ? `/${customGoal.feature}` as "/map" | "/groups" : null;
-      const actionLabel = customGoal.context === "mycommnet"
-        ? customGoal.feature === "map" ? "Open the Map" : "Explore Groups"
-        : "Track this myself";
-      const { data, error: insertError } = await supabase
-        .from("user_goals")
-        .insert({
+        const actionRoute: UserGoal["action_route"] = customGoal.context === "self"
+          ? null
+          : customGoal.feature === "map" ? "/map" : "/groups";
+        const actionLabel = customGoal.context !== "self"
+          ? customGoal.feature === "map" ? "Open the Map" : "Explore Groups"
+          : "Track this myself";
+        const payload = {
           user_id: userId,
-          goal_key: `custom-${crypto.randomUUID()}`,
+          goal_key: editingGoal?.goal_key ?? `custom-${crypto.randomUUID()}`,
           title,
-          description: requirement,
+          description: description || requirement,
           goal_type: customGoal.goalType,
           completion_requirement: requirement,
           target_date: customGoal.targetDate || null,
           completion_context: customGoal.context,
           action_label: actionLabel,
           action_route: actionRoute,
-          status: "active",
-          step: "discover",
-        })
-        .select()
-        .single();
+          updated_at: new Date().toISOString(),
+        };
+      const result = editingGoal
+        ? await supabase.from("user_goals").update(payload).eq("id", editingGoal.id).eq("user_id", userId).select().single()
+        : await supabase.from("user_goals").insert({ ...payload, status: "active", step: "discover" }).select().single();
 
-      if (insertError) {
-        setError(insertError.message);
-      } else if (data) {
-        setGoals((current) => [data as UserGoal, ...current]);
+      if (result.error) {
+        setError(result.error.message);
+      } else if (result.data) {
+        setGoals((current) => editingGoal
+          ? current.map((item) => item.id === editingGoal.id ? result.data as UserGoal : item)
+          : [result.data as UserGoal, ...current]);
         setCustomGoal(EMPTY_CUSTOM_GOAL);
         setShowCustomForm(false);
         setShowSuggestions(false);
+        setEditingGoal(null);
       }
       setSaving(false);
+  }
+
+  function beginEditGoal(goal: UserGoal) {
+      setEditingGoal(goal);
+      setCustomGoal(defaultDraftForGoal(goal));
+      setShowSuggestions(true);
+      setShowCustomForm(true);
+      setDismissedSuggestions([]);
   }
 
   async function updateGoal(goal: UserGoal, updates: Partial<Pick<UserGoal, "step" | "status" | "completed_at">>) {
@@ -435,7 +580,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
             </button>
           </div>
           {showCustomForm ? (
-            <form onSubmit={addCustomGoal} className="space-y-3">
+            <form onSubmit={saveCustomGoal} className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-xs">
                   <span className="mb-1 block font-medium">Goal name</span>
@@ -463,6 +608,16 @@ function GoalsInProgress({ userId }: { userId: string }) {
                     <option value="other">Other</option>
                   </select>
                 </label>
+                <label className="text-xs">
+                  <span className="mb-1 block font-medium">Description <span className="text-muted-foreground">(optional)</span></span>
+                  <input
+                    value={customGoal.description}
+                    onChange={(event) => setCustomGoal((current) => ({ ...current, description: event.target.value }))}
+                    placeholder="Why this goal matters to you"
+                    maxLength={240}
+                    className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-brand-teal"
+                  />
+                </label>
               </div>
               <label className="block text-xs">
                 <span className="mb-1 block font-medium">How will you know it is complete?</span>
@@ -477,30 +632,62 @@ function GoalsInProgress({ userId }: { userId: string }) {
                 />
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-xs">
+                <div className="text-xs">
                   <span className="mb-1 block font-medium">Target completion date <span className="text-muted-foreground">(optional)</span></span>
-                  <input
-                    type="date"
-                    value={customGoal.targetDate}
-                    onChange={(event) => setCustomGoal((current) => ({ ...current, targetDate: event.target.value }))}
-                    className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-brand-teal"
-                  />
-                </label>
+                  <div className="flex gap-2">
+                    <input
+                      aria-label="Target completion date"
+                      value={customGoal.targetDate}
+                      onChange={(event) => setCustomGoal((current) => ({ ...current, targetDate: event.target.value }))}
+                      onFocus={() => setDatePopoverOpen(true)}
+                      placeholder="YYYY-MM-DD"
+                      inputMode="numeric"
+                      className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-brand-teal"
+                    />
+                    <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <button type="button" aria-label="Open calendar" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-100 hover:text-slate-900 focus-visible:border-brand-teal focus-visible:ring-2 focus-visible:ring-brand-teal/50">
+                          <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-auto max-w-[calc(100vw-2rem)] p-0">
+                        <Calendar
+                          mode="single"
+                          captionLayout="dropdown"
+                          selected={dateFromKey(customGoal.targetDate)}
+                          defaultMonth={dateFromKey(customGoal.targetDate) ?? new Date()}
+                          disabled={{ before: todayLocal() }}
+                          onSelect={(date) => {
+                            setCustomGoal((current) => ({ ...current, targetDate: date ? localDateKey(date) : "" }));
+                            setDatePopoverOpen(false);
+                          }}
+                          initialFocus
+                        />
+                        <div className="flex items-center justify-between border-t border-border px-3 py-2">
+                          <span className="text-[11px] text-muted-foreground">Choose today or a later date.</span>
+                          {customGoal.targetDate && <button type="button" onClick={() => setCustomGoal((current) => ({ ...current, targetDate: "" }))} className="text-xs font-semibold text-brand-teal hover:underline">Clear</button>}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Choose today or a later date.</p>
+                </div>
                 <fieldset className="text-xs">
-                  <legend className="mb-1 font-medium">Where will you do this?</legend>
-                  <div className="flex gap-3 pt-1">
+                  <legend className="mb-1 font-medium">How does this relate to MyCommNet?</legend>
+                  <div className="space-y-1.5 pt-1">
                     <label className="flex items-center gap-1.5">
                       <input type="radio" name="goal-context" checked={customGoal.context === "self"} onChange={() => setCustomGoal((current) => ({ ...current, context: "self" }))} />
-                      Myself
+                      Personal — I mainly track this myself
                     </label>
                     <label className="flex items-center gap-1.5">
-                      <input type="radio" name="goal-context" checked={customGoal.context === "mycommnet"} onChange={() => setCustomGoal((current) => ({ ...current, context: "mycommnet" }))} />
-                      MyCommNet
+                      <input type="radio" name="goal-context" checked={customGoal.context === "mycommnet_supported"} onChange={() => setCustomGoal((current) => ({ ...current, context: "mycommnet_supported" }))} />
+                      MyCommNet-supported — discover, then act outside the app
                     </label>
+                    <p className="text-[11px] text-muted-foreground">In-app completion is not available for the current site features.</p>
                   </div>
                 </fieldset>
               </div>
-              {customGoal.context === "mycommnet" && (
+              {customGoal.context !== "self" && (
                 <label className="block text-xs">
                   <span className="mb-1 block font-medium">MyCommNet starting point</span>
                   <select
@@ -513,9 +700,33 @@ function GoalsInProgress({ userId }: { userId: string }) {
                   </select>
                 </label>
               )}
+              {matchingHelpSuggestions(customGoal).filter((suggestion) => !dismissedSuggestions.includes(suggestion.key)).length > 0 ? (
+                <div className="rounded-xl border border-brand-teal/30 bg-brand-teal/5 p-3">
+                  <p className="text-xs font-semibold text-brand-teal">Ways MyCommNet can help</p>
+                  <div className="mt-2 space-y-2">
+                    {matchingHelpSuggestions(customGoal)
+                      .filter((suggestion) => !dismissedSuggestions.includes(suggestion.key))
+                      .map((suggestion) => (
+                        <div key={suggestion.key} className="rounded-lg border border-border/60 bg-surface px-3 py-2">
+                          <p className="text-xs font-semibold">{suggestion.title}</p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">{suggestionMatchReason(customGoal, suggestion)}</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => setCustomGoal((current) => ({ ...current, context: suggestion.suggestedContext, feature: suggestion.actionRoute === "/groups" ? "groups" : "map" }))} className="rounded-md bg-gradient-brand px-2.5 py-1 text-[11px] font-semibold text-white">Use this</button>
+                            <button type="button" onClick={() => setDismissedSuggestions((current) => [...current, suggestion.key])} className="rounded-md border border-border px-2.5 py-1 text-[11px] hover:bg-surface-2">Dismiss</button>
+                            <span className="self-center text-[10px] text-muted-foreground">{suggestion.actionLabel}</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-lg bg-background/50 px-3 py-2 text-[11px] text-muted-foreground">
+                  You can track this goal here. There isn’t a matching MyCommNet feature available yet.
+                </p>
+              )}
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowCustomForm(false)} className="rounded-lg border border-border px-3 py-2 text-xs hover:bg-surface-2">Cancel</button>
-                <button type="submit" disabled={saving} className="rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50">Save custom goal</button>
+                <button type="button" onClick={() => { setShowCustomForm(false); setEditingGoal(null); setCustomGoal(EMPTY_CUSTOM_GOAL); }} className="rounded-lg border border-border px-3 py-2 text-xs hover:bg-surface-2">Cancel</button>
+                <button type="submit" disabled={saving} className="rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50">{editingGoal ? "Save changes" : "Save custom goal"}</button>
               </div>
             </form>
           ) : (
@@ -556,13 +767,17 @@ function GoalsInProgress({ userId }: { userId: string }) {
                   <div className="min-w-0">
                     <p className="font-semibold">{goal.title}</p>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{goal.description}</p>
+                    <p className="mt-2 text-[11px] text-muted-foreground"><span className="font-semibold text-foreground">Complete when:</span> {goal.completion_requirement}</p>
                       <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
                         <span className="rounded-full bg-background/70 px-2 py-0.5 capitalize">{goal.goal_type}</span>
-                        {goal.target_date && <span className="rounded-full bg-background/70 px-2 py-0.5">Target {goal.target_date}</span>}
-                        <span className="rounded-full bg-background/70 px-2 py-0.5">{goal.completion_context === "mycommnet" ? "Uses MyCommNet" : "Self-directed"}</span>
+                        {goal.target_date && <span className={`rounded-full px-2 py-0.5 ${goal.target_date <= localDateKey() ? "bg-red-400/10 text-red-300" : "bg-background/70"}`}>{goal.target_date <= localDateKey() ? "Overdue · " : "Target "}{formatGoalDate(goal.target_date)}</span>}
+                        <span className="rounded-full bg-background/70 px-2 py-0.5">{goal.completion_context === "mycommnet_supported" ? "MyCommNet-supported" : goal.completion_context === "in_app" ? "In-app" : "Self-directed"}</span>
                       </div>
                   </div>
-                  <button type="button" onClick={() => void removeGoal(goal)} disabled={saving} className="self-end text-xs text-muted-foreground hover:text-red-300 disabled:opacity-50 sm:self-start">Remove</button>
+                  <div className="flex items-center gap-3 self-end sm:self-start">
+                    <button type="button" onClick={() => beginEditGoal(goal)} disabled={saving} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"><Pencil className="h-3 w-3" /> Edit</button>
+                    <button type="button" onClick={() => void removeGoal(goal)} disabled={saving} className="text-xs text-muted-foreground hover:text-red-300 disabled:opacity-50">Remove</button>
+                  </div>
                 </div>
                 <div className="mt-3 rounded-lg bg-background/50 px-3 py-2 text-xs">
                   <p className="font-semibold text-brand-teal">
@@ -583,7 +798,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
                         <span className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">Self-directed goal</span>
                       )}
                       <button type="button" onClick={() => void updateGoal(goal, { step: "confirm" })} disabled={saving} className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 disabled:opacity-50">
-                        {goal.completion_context === "mycommnet" ? "I found an opportunity" : "I started working on it"}
+                        {goal.completion_context === "mycommnet_supported" ? "I found an opportunity" : "I started working on it"}
                       </button>
                     </>
                   ) : (
@@ -608,7 +823,11 @@ function GoalsInProgress({ userId }: { userId: string }) {
                   <p className="text-sm font-medium">{goal.title}</p>
                   <p className="text-[11px] text-brand-teal">Completed by you</p>
                 </div>
-                <button type="button" onClick={() => void removeGoal(goal)} disabled={saving} className="self-end text-xs text-muted-foreground hover:text-red-300 disabled:opacity-50 sm:self-auto">Remove</button>
+                <div className="flex items-center gap-3 self-end sm:self-auto">
+                  <button type="button" onClick={() => void updateGoal(goal, { status: "active", completed_at: null })} disabled={saving} className="text-xs text-brand-teal hover:underline disabled:opacity-50">Reopen</button>
+                  <button type="button" onClick={() => beginEditGoal(goal)} disabled={saving} className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50">Edit</button>
+                  <button type="button" onClick={() => void removeGoal(goal)} disabled={saving} className="text-xs text-muted-foreground hover:text-red-300 disabled:opacity-50">Remove</button>
+                </div>
               </div>
             ))}
           </div>
