@@ -1,8 +1,15 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
-import { Check, Loader2, Shield, UserPlus, Users } from "lucide-react";
+import {
+  Shield,
+  ArrowLeft,
+  Home,
+  Loader2,
+  UserPlus,
+  Check,
+} from "lucide-react";
 
 type SharedProfile = {
   id?: string;
@@ -29,12 +36,15 @@ export const Route = createFileRoute("/share/$username")({
 
 function SharedProfilePage() {
   const { username } = Route.useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
+
+  const cleanUsername = decodeURIComponent(username ?? "").trim().replace(/^@/, "");
 
   const [profile, setProfile] = useState<SharedProfile | null>(null);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("none");
   const [connectionId, setConnectionId] = useState<string | null>(null);
@@ -45,29 +55,30 @@ function SharedProfilePage() {
     let active = true;
 
     async function loadSharedProfile() {
+      if (!cleanUsername) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
-      setError(null);
+      setNotFound(false);
       try {
-        // 1. Try to fetch from shared_profiles view
+        // 1. Query shared_profiles view (case-insensitive lookup)
         const { data: viewData, error: viewError } = await supabase
           .from("shared_profiles")
           .select("username, full_name, bio, avatar_url, headline, pass_intro, skills")
-          .eq("username", username)
+          .ilike("username", cleanUsername)
           .maybeSingle();
 
-        // 2. Fetch profile id from profiles table by username
+        // 2. Query profiles table by username as fallback
         const { data: profileRow } = await supabase
           .from("profiles")
           .select("id, username, full_name, bio, avatar_url, headline")
-          .eq("username", username)
+          .ilike("username", cleanUsername)
           .maybeSingle();
 
         if (!active) return;
-
-        if (viewError && !profileRow) {
-          setError("This shared profile is unavailable.");
-          return;
-        }
 
         const resolvedProfile: SharedProfile | null = (viewData as SharedProfile) ?? (profileRow ? {
           id: profileRow.id,
@@ -81,7 +92,7 @@ function SharedProfilePage() {
         } : null);
 
         if (!resolvedProfile) {
-          setError("This shared profile could not be found.");
+          setNotFound(true);
           return;
         }
 
@@ -113,7 +124,10 @@ function SharedProfilePage() {
           }
         }
       } catch (err: any) {
-        if (active) setError(err?.message ?? "Error loading profile.");
+        if (active) {
+          console.warn("Shared profile fetch note:", err?.message);
+          setNotFound(true);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -123,7 +137,7 @@ function SharedProfilePage() {
     return () => {
       active = false;
     };
-  }, [username, user]);
+  }, [cleanUsername, user]);
 
   async function handleSendConnect() {
     if (!user || !profileUserId) return;
@@ -171,6 +185,14 @@ function SharedProfilePage() {
     }
   }
 
+  function handleBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      window.history.back();
+    } else {
+      void navigate({ to: "/" });
+    }
+  }
+
   const isOwnProfile = user && profileUserId && user.id === profileUserId;
 
   return (
@@ -184,15 +206,45 @@ function SharedProfilePage() {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-border/60 bg-surface p-12 text-sm text-muted-foreground gap-2">
+          <div className="flex flex-col items-center justify-center rounded-3xl border border-border/60 bg-surface p-12 text-sm text-muted-foreground gap-3">
             <Loader2 className="h-6 w-6 animate-spin text-brand-teal" />
-            <span>Loading profile…</span>
+            <span>Loading community profile…</span>
           </div>
-        ) : error ? (
-          <div className="rounded-2xl border border-red-400/30 bg-red-400/10 p-8 text-center text-sm text-red-100">
-            {error}
-          </div>
-        ) : profile ? (
+        ) : notFound || !profile ? (
+          /* Community Profile Not Found Card */
+          <article className="rounded-3xl border border-border/60 bg-surface p-8 text-center shadow-xl">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-surface-2 text-muted-foreground ring-1 ring-border/80 mb-4">
+              <Shield className="h-8 w-8 text-muted-foreground/60" />
+            </div>
+            <h2 className="font-display text-xl font-bold text-foreground">
+              Community Profile Not Found
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              We couldn't find a public Community Pass profile for{" "}
+              <span className="font-mono text-brand-teal font-semibold">
+                @{cleanUsername || username}
+              </span>
+              . The username may be misspelled, or the member may not have shared their pass publicly yet.
+            </p>
+
+            <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 pt-6 border-t border-border/60">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-surface-2 transition active:scale-95"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Back
+              </button>
+              <Link
+                to="/"
+                className="flex items-center justify-center gap-2 rounded-xl bg-gradient-brand px-4 py-2.5 text-xs font-semibold text-white shadow-glow-purple hover:opacity-95 transition active:scale-95"
+              >
+                <Home className="h-3.5 w-3.5" /> Return to Home
+              </Link>
+            </div>
+          </article>
+        ) : (
+          /* Found Public Community Profile */
           <article className="rounded-3xl border border-border/60 bg-surface p-8 text-center shadow-xl">
             {profile.avatar_url ? (
               <img
@@ -240,7 +292,7 @@ function SharedProfilePage() {
                   <p className="text-xs text-muted-foreground">Sign in to connect with {profile.full_name ?? `@${profile.username}`}.</p>
                   <Link
                     to="/login"
-                    search={{ redirect: `/share/${encodeURIComponent(username)}` }}
+                    search={{ redirect: `/share/${encodeURIComponent(cleanUsername)}` }}
                     className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-4 py-2 text-xs font-semibold text-white hover:opacity-95"
                   >
                     <UserPlus className="h-3.5 w-3.5" /> Sign in to Connect
@@ -288,7 +340,7 @@ function SharedProfilePage() {
               )}
             </div>
           </article>
-        ) : null}
+        )}
       </div>
     </main>
   );

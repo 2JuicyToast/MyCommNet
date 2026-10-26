@@ -2121,7 +2121,7 @@ function ProfilePage() {
                 </div>
               </div>
 
-              {/* 4 Statistics Holders */}
+              {/* Community Pass Statistics Holders: Events Attended & Community Service Hours */}
               <div className="mt-4 grid grid-cols-2 gap-2 text-left">
                 <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-sm border border-white/10">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-white/75">Events Attended</p>
@@ -2130,14 +2130,6 @@ function ProfilePage() {
                 <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-sm border border-white/10">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-white/75">Service Hours</p>
                   <p className="font-display text-lg font-bold text-white mt-0.5">{stats.serviceHours}</p>
-                </div>
-                <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-sm border border-white/10">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/75">Groups Joined</p>
-                  <p className="font-display text-lg font-bold text-white mt-0.5">{stats.groupsJoined}</p>
-                </div>
-                <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-sm border border-white/10">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/75">Connections</p>
-                  <p className="font-display text-lg font-bold text-white mt-0.5">{stats.connections}</p>
                 </div>
               </div>
 
@@ -2407,11 +2399,12 @@ function ProfilePage() {
           </section>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "Community hours", value: stats.serviceHours, icon: Award },
-              { label: "Groups", value: stats.groupsJoined, icon: Heart },
-              { label: "Connections", value: stats.connections, icon: LinkIcon },
+              { label: "Connections", value: stats.connections, icon: Users },
+              { label: "Groups Joined", value: stats.groupsJoined, icon: Heart },
+              { label: "Community Hours", value: stats.serviceHours, icon: Award },
+              { label: "Events Attended", value: stats.eventsAttended, icon: CalendarDays },
             ].map((s) => {
               const Icon = s.icon;
               return (
