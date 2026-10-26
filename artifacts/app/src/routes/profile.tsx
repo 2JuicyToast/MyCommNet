@@ -358,6 +358,7 @@ function matchingHelpSuggestions(goal: CustomGoalDraft): HelpSuggestion[] {
     const categoryScore = (suggestion: HelpSuggestion) => suggestion.categories.includes(goal.goalType) ? 1 : 0;
     return categoryScore(b) - categoryScore(a);
   });
+}
 
 function defaultDraftForGoal(goal: UserGoal): CustomGoalDraft {
   return {
