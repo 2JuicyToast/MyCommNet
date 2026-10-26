@@ -1521,8 +1521,8 @@ function ProfilePage() {
   }
 
   function startEditingProfile() {
-    setEditFullName(fullName);
-    setEditHeadline(headline);
+    setEditFullName(profile?.full_name ?? fullName);
+    setEditHeadline(profile?.headline ?? headline);
     setUploadErr(null);
     setIsEditing(true);
   }
@@ -1530,8 +1530,8 @@ function ProfilePage() {
   // Synchronize drafts with current values whenever editing starts
   useEffect(() => {
     if (isEditing) {
-      setEditFullName(fullName);
-      setEditHeadline(headline);
+      setEditFullName(profile?.full_name ?? fullName);
+      setEditHeadline(profile?.headline ?? headline);
     }
   }, [isEditing]);
 
@@ -1548,71 +1548,88 @@ function ProfilePage() {
         throw new Error("Display name cannot be blank.");
       }
 
-      if (user) {
-        const profileUpdates: {
-          id: string;
-          full_name: string;
-          headline: string | null;
-          username?: string;
-          avatar_url?: string;
-          banner_url?: string;
-          updated_at?: string;
-        } = {
-          id: user.id,
-          full_name: trimmedName,
-          headline: trimmedHeadline || null,
-          updated_at: new Date().toISOString(),
-        };
-
-        if (!profile?.username && username) {
-          profileUpdates.username = username;
-        }
-
-        if (pendingAvatarBlob) {
-          const path = `${user.id}/avatar-${Date.now()}.jpg`;
-          const { error: upErr } = await supabase.storage.from("avatars").upload(path, pendingAvatarBlob, { contentType: "image/jpeg" });
-          if (upErr) throw upErr;
-          const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-          const url = data.publicUrl;
-          setAvatarUrl(url);
-          profileUpdates.avatar_url = url;
-        }
-        if (pendingBannerBlob) {
-          const path = `${user.id}/banner-${Date.now()}.jpg`;
-          const { error: upErr } = await supabase.storage.from("banners").upload(path, pendingBannerBlob, { contentType: "image/jpeg" });
-          if (upErr) throw upErr;
-          const { data } = supabase.storage.from("banners").getPublicUrl(path);
-          const url = data.publicUrl;
-          setBannerUrl(url);
-          profileUpdates.banner_url = url;
-        }
-
-        // Upsert to profiles table so update succeeds even if row was freshly initialized
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .upsert(profileUpdates, { onConflict: "id" });
-        if (updateError) throw updateError;
-
-        // Keep Supabase auth user metadata in sync with profile full_name
-        await supabase.auth.updateUser({
-          data: { full_name: trimmedName },
-        });
-
-        await refreshProfile();
+      if (!user) {
+        throw new Error("You must be signed in to save profile changes.");
       }
+
+      const profileUpdates: {
+        full_name: string;
+        headline: string | null;
+        username?: string;
+        avatar_url?: string;
+        banner_url?: string;
+        updated_at?: string;
+      } = {
+        full_name: trimmedName,
+        headline: trimmedHeadline || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (!profile?.username && username) {
+        profileUpdates.username = username;
+      }
+
+      if (pendingAvatarBlob) {
+        const path = `${user.id}/avatar-${Date.now()}.jpg`;
+        const { error: upErr } = await supabase.storage.from("avatars").upload(path, pendingAvatarBlob, { contentType: "image/jpeg", upsert: true });
+        if (upErr) throw upErr;
+        const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+        const url = data.publicUrl;
+        setAvatarUrl(url);
+        profileUpdates.avatar_url = url;
+      }
+      if (pendingBannerBlob) {
+        const path = `${user.id}/banner-${Date.now()}.jpg`;
+        const { error: upErr } = await supabase.storage.from("banners").upload(path, pendingBannerBlob, { contentType: "image/jpeg", upsert: true });
+        if (upErr) throw upErr;
+        const { data } = supabase.storage.from("banners").getPublicUrl(path);
+        const url = data.publicUrl;
+        setBannerUrl(url);
+        profileUpdates.banner_url = url;
+      }
+
+      // Update the user's row in profiles table (respecting RLS)
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update(profileUpdates)
+        .eq("id", user.id);
+
+      if (updateError) {
+        console.error("Profile update error:", updateError);
+        throw new Error(updateError.message || "Failed to update profile.");
+      }
+
+      // Keep Supabase auth user metadata in sync with profile full_name
+      const { error: authErr } = await supabase.auth.updateUser({
+        data: { full_name: trimmedName },
+      });
+      if (authErr) {
+        console.warn("Auth metadata update note:", authErr.message);
+      }
+
+      // Await fresh profile data from Supabase
+      await refreshProfile();
 
       setSavedName(trimmedName);
       setSavedHeadline(trimmedHeadline || "");
+      if (passPdfUrl) {
+        URL.revokeObjectURL(passPdfUrl);
+        setPassPdfUrl(null);
+      }
       succeeded = true;
     } catch (e: any) {
       setUploadErr(e?.message ?? "Save failed — please try again.");
     } finally {
-      if (pendingAvatarPreview) URL.revokeObjectURL(pendingAvatarPreview);
-      if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
-      setPendingAvatarBlob(null); setPendingAvatarPreview(null);
-      setPendingBannerBlob(null); setPendingBannerPreview(null);
       setSaving(false);
-      if (succeeded) setIsEditing(false);
+      if (succeeded) {
+        setIsEditing(false);
+        if (pendingAvatarPreview) URL.revokeObjectURL(pendingAvatarPreview);
+        if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
+        setPendingAvatarBlob(null);
+        setPendingAvatarPreview(null);
+        setPendingBannerBlob(null);
+        setPendingBannerPreview(null);
+      }
     }
   }
 
@@ -1620,10 +1637,12 @@ function ProfilePage() {
   function handleCancelEdit() {
     if (pendingAvatarPreview) URL.revokeObjectURL(pendingAvatarPreview);
     if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
-    setPendingAvatarBlob(null); setPendingAvatarPreview(null);
-    setPendingBannerBlob(null); setPendingBannerPreview(null);
-    setEditFullName(fullName);
-    setEditHeadline(headline);
+    setPendingAvatarBlob(null);
+    setPendingAvatarPreview(null);
+    setPendingBannerBlob(null);
+    setPendingBannerPreview(null);
+    setEditFullName(profile?.full_name ?? fullName);
+    setEditHeadline(profile?.headline ?? headline);
     setUploadErr(null);
     setIsEditing(false);
   }
@@ -1869,14 +1888,33 @@ function ProfilePage() {
         pdf.text(box.value, box.x + box.width / 2, box.y + 15, { align: "center" });
       }
 
-      // Card footer
+      // Card footer: printed URL beneath QR code & statistics
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(7.5);
-      pdf.setTextColor(100, 116, 139);
-      pdf.text(passProfileUrl, 105, 256, { align: "center", maxWidth: 150 });
+      pdf.setTextColor(255, 255, 255); // White as requested
+
+      const urlLines: string[] = pdf.splitTextToSize(passProfileUrl, 150);
+      const lineHeightMm = 3.5;
+      const startUrlY = urlLines.length > 1 ? 255 - ((urlLines.length - 1) * lineHeightMm) / 2 : 256;
+
+      pdf.setDrawColor(255, 255, 255);
+      pdf.setLineWidth(0.2);
+
+      urlLines.forEach((lineText, idx) => {
+        const lineY = startUrlY + idx * lineHeightMm;
+        const textWidth = pdf.getTextWidth(lineText);
+        const lineX = 105 - textWidth / 2;
+
+        pdf.text(lineText, 105, lineY, { align: "center" });
+        // Clean underline directly beneath the URL text
+        pdf.line(lineX, lineY + 0.6, lineX + textWidth, lineY + 0.6);
+        // Clickable PDF link annotation over the exact bounds of the URL text
+        pdf.link(lineX, lineY - 2.5, textWidth, 3.5, { url: passProfileUrl });
+      });
+
       pdf.setTextColor(203, 195, 215);
       pdf.setFont("helvetica", "bold");
-      pdf.text("MyCommNet Community Platform", 105, 263, { align: "center" });
+      pdf.text("MyCommNet Community Platform", 105, 264, { align: "center" });
 
       const blob = pdf.output("blob");
       setPassQrUrl(qrDataUrl);
@@ -2022,6 +2060,12 @@ function ProfilePage() {
             {/* Left: user info or edit inputs */}
             {isEditing ? (
               <div className="flex-1 py-1 space-y-2.5 max-w-lg">
+                {uploadErr && (
+                  <div className="rounded-xl border border-red-500/40 bg-red-500/15 p-2.5 text-xs text-red-200">
+                    <p className="font-semibold">Unable to save profile</p>
+                    <p className="mt-0.5 text-[11px] opacity-90">{uploadErr}</p>
+                  </div>
+                )}
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div>
                     <label className="block text-[11px] font-semibold text-foreground/80 mb-1">
@@ -2066,10 +2110,10 @@ function ProfilePage() {
                     <Users className="h-3 w-3 shrink-0" />
                     <span>Community Member</span>
                   </div>
-                  {profile?.headline && (
+                  {headline && (
                     <>
                       <span className="opacity-40">·</span>
-                      <span className="font-semibold text-brand-teal">{profile.headline}</span>
+                      <span className="font-semibold text-brand-teal">{headline}</span>
                     </>
                   )}
                   <span className="opacity-40">·</span>
@@ -2762,10 +2806,19 @@ function ProfilePage() {
                   {passQrUrl && (
                     <div className="mx-auto max-w-sm rounded-xl bg-white p-5 text-center text-slate-900 shadow-md">
                       <p className="font-bold text-base">{fullName}</p>
-                      {profile?.headline && <p className="text-xs font-medium text-slate-600 mt-0.5">{profile.headline}</p>}
+                      {headline && <p className="text-xs font-medium text-slate-600 mt-0.5">{headline}</p>}
                       {username && <p className="text-xs text-slate-500">@{username}</p>}
                       <img src={passQrUrl} alt="QR code for your shareable profile" className="mx-auto my-3 aspect-square w-48" />
-                      <p className="break-all text-[11px] text-slate-500">{passProfileUrl}</p>
+                      <p className="break-all text-[11px] text-slate-500">
+                        <a
+                          href={passProfileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-brand-purple underline underline-offset-2 hover:text-brand-teal transition-colors"
+                        >
+                          {passProfileUrl}
+                        </a>
+                      </p>
                     </div>
                   )}
                 </div>
@@ -2778,9 +2831,20 @@ function ProfilePage() {
                     src={passPdfUrl}
                     className="h-[58vh] min-h-[340px] max-h-[620px] w-full rounded-xl border border-border/60 bg-white shadow-inner"
                   />
-                  <div className="mt-3 flex items-center justify-between w-full px-1 text-[11px] text-muted-foreground">
-                    <span>QR destination: <span className="font-mono text-brand-teal">{passProfileUrl}</span></span>
-                    <span className="hidden sm:inline">Use Download or Print below for offline copies</span>
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 w-full px-1 text-[11px] text-muted-foreground">
+                    <span className="min-w-0 break-all">
+                      QR destination:{" "}
+                      <a
+                        href={passProfileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-brand-teal underline underline-offset-2 hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal focus-visible:ring-offset-1 focus-visible:ring-offset-surface rounded cursor-pointer transition-colors"
+                        title="Open shared profile in a new tab"
+                      >
+                        {passProfileUrl}
+                      </a>
+                    </span>
+                    <span className="shrink-0 hidden sm:inline">Use Download or Print below for offline copies</span>
                   </div>
                 </div>
               )}
