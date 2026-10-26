@@ -22,6 +22,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RestrictedRouteImport } from './routes/restricted'
+import { Route as ShareUsernameRouteImport } from './routes/share.$username'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -88,6 +89,11 @@ const RestrictedRoute = RestrictedRouteImport.update({
   path: '/restricted',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShareUsernameRoute = ShareUsernameRouteImport.update({
+  id: '/share/$username',
+  path: '/share/$username',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/restricted': typeof RestrictedRoute
+  '/share/$username': typeof ShareUsernameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/restricted': typeof RestrictedRoute
+  '/share/$username': typeof ShareUsernameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/restricted': typeof RestrictedRoute
+  '/share/$username': typeof ShareUsernameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/restricted'
+    | '/share/$username'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/restricted'
+    | '/share/$username'
   id:
     | '__root__'
     | '/'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/restricted'
+    | '/share/$username'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RestrictedRoute: typeof RestrictedRoute
+  ShareUsernameRoute: typeof ShareUsernameRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -292,6 +305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestrictedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/share/$username': {
+      id: '/share/$username'
+      path: '/share/$username'
+      fullPath: '/share/$username'
+      preLoaderRoute: typeof ShareUsernameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -309,6 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RestrictedRoute: RestrictedRoute,
+  ShareUsernameRoute: ShareUsernameRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

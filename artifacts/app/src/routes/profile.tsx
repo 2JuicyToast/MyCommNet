@@ -35,6 +35,9 @@ import {
   CalendarDays,
   Pencil,
   Eye,
+  Download,
+  Printer,
+  AlertTriangle,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1109,6 +1112,8 @@ function ProfilePage() {
   const [pendingBannerBlob, setPendingBannerBlob] = useState<Blob | null>(null);
   const [pendingBannerPreview, setPendingBannerPreview] = useState<string | null>(null);
   // Edit-mode fields
+  const [editFullName, setEditFullName] = useState("");
+  const [editHeadline, setEditHeadline] = useState("");
   const [editBio, setEditBio] = useState("");
   const [editLinks, setEditLinks] = useState<ProfileLink[]>([]);
   const [editSkills, setEditSkills] = useState<string[]>([]);
@@ -1116,15 +1121,6 @@ function ProfilePage() {
   const [editingAbout, setEditingAbout] = useState(false);
   const [editingLinks, setEditingLinks] = useState(false);
   const [editingSkills, setEditingSkills] = useState(false);
-  const [editingPass, setEditingPass] = useState(false);
-  const [passSaving, setPassSaving] = useState(false);
-  const [passSaveError, setPassSaveError] = useState<string | null>(null);
-  const [passSaveSuccess, setPassSaveSuccess] = useState(false);
-  const [passName, setPassName] = useState("");
-  const [passSkillsText, setPassSkillsText] = useState("");
-  const [passHeadline, setPassHeadline] = useState("");
-  const [passIntro, setPassIntro] = useState("");
-  const [passVisibility, setPassVisibility] = useState({ headline: true, intro: true, skills: true, stats: false });
   const [passOpen, setPassOpen] = useState(false);
   const [passBusy, setPassBusy] = useState(false);
   const [passError, setPassError] = useState<string | null>(null);
@@ -1177,13 +1173,40 @@ function ProfilePage() {
     setCropMode(null);
   }
 
-  // Upload everything on Done
+  function startEditingProfile() {
+    setEditFullName(fullName);
+    setEditHeadline(profile?.headline ?? "");
+    setIsEditing(true);
+  }
+
+  // Upload avatar/banner and save profile name and headline on Done
   async function handleDone() {
     if (!user) { setIsEditing(false); return; }
     setSaving(true);
     setUploadErr(null);
     let succeeded = false;
     try {
+      const trimmedName = editFullName.trim();
+      const trimmedHeadline = editHeadline.trim();
+      const profileUpdates: {
+        full_name?: string;
+        headline?: string | null;
+        avatar_url?: string;
+        banner_url?: string;
+      } = {};
+
+      if (trimmedName && trimmedName !== fullName) {
+        profileUpdates.full_name = trimmedName;
+        // Keep auth metadata in sync with profile full_name
+        await supabase.auth.updateUser({
+          data: { full_name: trimmedName },
+        });
+      }
+
+      if (trimmedHeadline !== (profile?.headline ?? "")) {
+        profileUpdates.headline = trimmedHeadline || null;
+      }
+
       if (pendingAvatarBlob) {
         const path = `${user.id}/avatar-${Date.now()}.jpg`;
         const { error: upErr } = await supabase.storage.from("avatars").upload(path, pendingAvatarBlob, { contentType: "image/jpeg" });
@@ -1191,7 +1214,7 @@ function ProfilePage() {
         const { data } = supabase.storage.from("avatars").getPublicUrl(path);
         const url = data.publicUrl;
         setAvatarUrl(url);
-        await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
+        profileUpdates.avatar_url = url;
       }
       if (pendingBannerBlob) {
         const path = `${user.id}/banner-${Date.now()}.jpg`;
@@ -1200,8 +1223,14 @@ function ProfilePage() {
         const { data } = supabase.storage.from("banners").getPublicUrl(path);
         const url = data.publicUrl;
         setBannerUrl(url);
-        await supabase.from("profiles").update({ banner_url: url }).eq("id", user.id);
+        profileUpdates.banner_url = url;
       }
+
+      if (Object.keys(profileUpdates).length > 0) {
+        const { error } = await supabase.from("profiles").update(profileUpdates).eq("id", user.id);
+        if (error) throw error;
+      }
+
       await refreshProfile();
       succeeded = true;
     } catch (e: any) {
@@ -1216,12 +1245,14 @@ function ProfilePage() {
     if (succeeded) setIsEditing(false);
   }
 
-  // Discard local previews on Cancel (avatar/banner only)
+  // Discard local previews and input drafts on Cancel
   function handleCancelEdit() {
     if (pendingAvatarPreview) URL.revokeObjectURL(pendingAvatarPreview);
     if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
     setPendingAvatarBlob(null); setPendingAvatarPreview(null);
     setPendingBannerBlob(null); setPendingBannerPreview(null);
+    setEditFullName(fullName);
+    setEditHeadline(profile?.headline ?? "");
     setIsEditing(false);
   }
 
@@ -1302,41 +1333,19 @@ function ProfilePage() {
   const displaySkills: string[] = Array.isArray(rawSkills) ? rawSkills as string[] : [];
   const passSkills = Array.isArray(profile?.selected_skills) ? profile.selected_skills : displaySkills;
 
-  function beginPassEdit() {
-    setPassName(fullName);
-    setPassSkillsText(passSkills.join(", "));
-    setPassHeadline(profile?.headline ?? "");
-    setPassIntro(profile?.pass_intro ?? "");
-    setPassVisibility({ headline: profile?.pass_visibility?.headline ?? true, intro: profile?.pass_visibility?.intro ?? true, skills: profile?.pass_visibility?.skills ?? true, stats: profile?.pass_visibility?.stats ?? false });
-    setPassSaveError(null);
-    setPassSaveSuccess(false);
-    setEditingPass(true);
-  }
-
-  async function savePassSettings() {
-    if (!user) return;
-    setPassSaving(true);
-    setPassSaveError(null);
-    setPassSaveSuccess(false);
-    const { error } = await supabase.from("profiles").update({
-      full_name: passName.trim(),
-      headline: passHeadline.trim() || null,
-      pass_intro: passIntro.trim() || null,
-      selected_skills: passSkillsText.split(",").map((skill) => skill.trim()).filter(Boolean).slice(0, 20),
-      pass_visibility: passVisibility,
-    }).eq("id", user.id);
-    if (error) {
-      setPassSaveError(error.message);
-    } else {
-      await refreshProfile();
-      setPassSaveSuccess(true);
-    }
-    setPassSaving(false);
-  }
-
   const passProfileUrl = typeof window === "undefined"
     ? ""
     : `${window.location.origin}${import.meta.env.BASE_URL}share/${encodeURIComponent(username ?? "")}`;
+
+  // Keyboard shortcut to close pass preview on Escape
+  useEffect(() => {
+    if (!passOpen) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") closeCommunityPass();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [passOpen]);
 
   useEffect(() => {
     if (!passProfileUrl) return;
@@ -1345,7 +1354,7 @@ function ProfilePage() {
       errorCorrectionLevel: "H",
       margin: 4,
       width: 900,
-      color: { dark: "#111827", light: "#ffffff" },
+      color: { dark: "#070d1e", light: "#ffffff" },
     }).then((qrDataUrl) => {
       if (!cancelled) setPassQrUrl(qrDataUrl);
     }).catch(() => {
@@ -1366,50 +1375,100 @@ function ProfilePage() {
         errorCorrectionLevel: "H",
         margin: 4,
         width: 900,
-        color: { dark: "#111827", light: "#ffffff" },
+        color: { dark: "#070d1e", light: "#ffffff" },
       });
       const pdf = new jsPDF({ unit: "mm", format: "a4" });
-      pdf.setFillColor(248, 250, 252);
+
+      // Outer canvas background (Dark navy MyCommNet background)
+      pdf.setFillColor(7, 13, 30);
       pdf.rect(0, 0, 210, 297, "F");
-      pdf.setFillColor(91, 33, 182);
-      pdf.roundedRect(20, 20, 170, 257, 8, 8, "F");
-      pdf.setTextColor(255, 255, 255);
+
+      // Pass card container (A4 dimensions: 210 x 297)
+      // Centered card: x=20, y=20, width=170, height=257
+      pdf.setFillColor(15, 23, 50);
+      pdf.roundedRect(20, 20, 170, 257, 6, 6, "F");
+
+      // Header accent bar
+      pdf.setFillColor(88, 28, 135);
+      pdf.roundedRect(20, 20, 170, 36, 6, 6, "F");
+      pdf.rect(20, 46, 170, 10, "F");
+
+      // MyCommNet header text
+      pdf.setTextColor(79, 219, 200); // Brand teal
       pdf.setFontSize(11);
-      pdf.text("MYCOMMNET · COMMUNITY PASS", 30, 38);
-      pdf.setFontSize(24);
       pdf.setFont("helvetica", "bold");
-      pdf.text(fullName, 30, 58, { maxWidth: 150 });
+      pdf.text("MYCOMMNET", 30, 33);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text("· COMMUNITY PASS", 62, 33);
+
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(216, 180, 254);
+      pdf.text("VERIFIED MEMBER CREDENTIAL & QR ACCESS", 30, 41);
+
+      // Member Name
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(22);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(fullName, 30, 68, { maxWidth: 115 });
+
+      // Member Avatar (if available)
       if (avatarUrl) {
         const avatarDataUrl = await imageUrlToDataUrl(avatarUrl);
-        if (avatarDataUrl) pdf.addImage(avatarDataUrl, "JPEG", 158, 42, 24, 24);
+        if (avatarDataUrl) {
+          pdf.setFillColor(255, 255, 255);
+          pdf.roundedRect(150, 56, 26, 26, 3, 3, "F");
+          pdf.addImage(avatarDataUrl, "JPEG", 151, 57, 24, 24);
+        }
       }
+
+      // Member headline or community role
+      let currentY = 76;
+      if (profile?.headline) {
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(79, 219, 200); // Teal
+        pdf.text(profile.headline, 30, currentY, { maxWidth: 115 });
+        currentY += 7;
+      }
+
+      // Username & Membership
+      pdf.setFontSize(9.5);
       pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(12);
-      if (username) pdf.text(`@${username}`, 30, 68);
-      pdf.setTextColor(229, 231, 235);
-      pdf.setFontSize(11);
-      pdf.text("Community Member", 30, 78);
-      if (profile?.headline && passVisibility.headline) {
-        pdf.setFontSize(10);
-        pdf.text(profile.headline, 30, 86, { maxWidth: 145 });
+      pdf.setTextColor(168, 85, 247);
+      if (username) {
+        pdf.text(`@${username} · Community Member`, 30, currentY);
+      } else {
+        pdf.text("Community Member", 30, currentY);
       }
-      if (profile?.pass_intro && passVisibility.intro) {
-        pdf.setFontSize(9);
-        pdf.text(profile.pass_intro, 30, 92, { maxWidth: 145 });
-      }
-      pdf.setFontSize(9);
-      pdf.text(`Verified hours: ${statUnavailable}`, 30, 242);
-      pdf.text(`Events attended: ${statUnavailable}`, 30, 248);
-      pdf.text(`Groups: ${statUnavailable}`, 30, 254);
-      pdf.text(`Connections: ${statUnavailable}`, 30, 260);
+
+      // QR Code container (white card)
       pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(35, 103, 140, 124, 4, 4, "F");
-      pdf.addImage(qrDataUrl, "PNG", 48, 108, 114, 114, undefined, "NONE");
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(9);
-      pdf.text("Scan to view this shareable profile", 105, 270, { align: "center" });
+      pdf.roundedRect(35, 96, 140, 126, 4, 4, "F");
+      pdf.addImage(qrDataUrl, "PNG", 50, 101, 110, 110, undefined, "NONE");
+      pdf.setTextColor(15, 23, 42);
       pdf.setFontSize(8);
-      pdf.text(passProfileUrl, 105, 280, { align: "center", maxWidth: 145 });
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Scan to view shareable profile & verify credentials", 105, 217, { align: "center" });
+
+      // Verification / Activity records section
+      pdf.setTextColor(203, 195, 215);
+      pdf.setFontSize(8.5);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("VERIFIED ACTIVITY & ATTENDANCE", 30, 234);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text("Attendance & Service Hours: Not available yet (verification records pending)", 30, 240);
+      pdf.text("Verified activity requires confirmed check-in records from community events.", 30, 245);
+
+      // Card footer
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(passProfileUrl, 105, 266, { align: "center", maxWidth: 150 });
+      pdf.text("Issued by MyCommNet · Atlanta Community Network", 105, 271, { align: "center" });
+
       const blob = pdf.output("blob");
       setPassQrUrl(qrDataUrl);
       setPassPdfUrl(URL.createObjectURL(blob));
@@ -1493,19 +1552,21 @@ function ProfilePage() {
           {/* Gradient scrim — keeps name legible against any banner image */}
           <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
           {/* Name + user info sits in the banner just above the bar, cleared of the avatar */}
-          <div className="absolute bottom-0 pb-4 pointer-events-none z-0" style={{ left: "calc(1.5rem + 8rem + 1rem)" }}>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1
-                className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white leading-tight"
-                style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9), 0 2px 24px rgba(0,0,0,0.7)" }}
-              >
-                {fullName}
-              </h1>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-teal/20 border border-brand-teal/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-teal">
-                <Shield className="h-3 w-3" /> Verified
-              </span>
+          {!isEditing && (
+            <div className="absolute bottom-0 pb-4 pointer-events-none z-0" style={{ left: "calc(1.5rem + 8rem + 1rem)" }}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1
+                  className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white leading-tight"
+                  style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9), 0 2px 24px rgba(0,0,0,0.7)" }}
+                >
+                  {fullName}
+                </h1>
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-teal/20 border border-brand-teal/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-teal">
+                  <Shield className="h-3 w-3" /> Verified
+                </span>
+              </div>
             </div>
-          </div>
+          )}
           {isEditing && (
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(0,0,0,0.35)" }}>
               <div className="flex items-center gap-2 text-white text-sm font-medium">
@@ -1516,7 +1577,7 @@ function ProfilePage() {
         </div>
 
         {/* Bar — avatar straddles 50/50, info left, buttons right, all vertically centered */}
-        <div className="relative rounded-b-3xl overflow-visible px-6 py-0 md:px-8 min-h-[5rem]" style={{ background: "var(--background)" }}>
+        <div className="relative rounded-b-3xl overflow-visible px-6 py-3 md:px-8 min-h-[5.5rem]" style={{ background: "var(--background)" }}>
           {/* Avatar — h-32 = 128px, -top-16 = 64px so exactly half in banner / half in bar */}
           <div
             className={`absolute left-6 md:left-8 -top-16 z-10 ${isEditing ? "group cursor-pointer" : ""}`}
@@ -1547,29 +1608,74 @@ function ProfilePage() {
             )}
           </div>
 
-          {/* Info left + buttons right, vertically centered — marginLeft = name's left minus bar's px-6 padding */}
-          <div className="flex items-center justify-between gap-4 min-h-[5rem]" style={{ marginLeft: "calc(8rem + 1rem)" }}>
-            {/* Left: user info */}
-            <div className="flex flex-col gap-0.5">
-              {username && (
-                <p className="flex items-center gap-1 text-sm font-medium" style={{ color: "#a078ff" }}>
-                  <AtSign className="h-3.5 w-3.5" />{username}
+          {/* Info left + buttons right */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4" style={{ marginLeft: "calc(8rem + 1rem)" }}>
+            {/* Left: user info or edit inputs */}
+            {isEditing ? (
+              <div className="flex-1 py-1 space-y-2.5 max-w-lg">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-foreground/80 mb-1">
+                      Profile Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editFullName}
+                      onChange={(e) => setEditFullName(e.target.value)}
+                      maxLength={80}
+                      placeholder="Display name"
+                      className="h-8.5 w-full rounded-lg border border-border bg-surface-2 px-2.5 text-xs text-foreground outline-none focus:border-brand-teal transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-foreground/80 mb-1">
+                      Headline <span className="text-muted-foreground font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editHeadline}
+                      onChange={(e) => setEditHeadline(e.target.value)}
+                      maxLength={120}
+                      placeholder="e.g. Student, Volunteer, IT Support"
+                      className="h-8.5 w-full rounded-lg border border-border bg-surface-2 px-2.5 text-xs text-foreground outline-none focus:border-brand-teal transition-colors"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Saved name and headline sync directly with your Community Pass card and generated PDF.
                 </p>
-              )}
-              <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Users className="h-3 w-3 shrink-0" />
-                <span>Community Member</span>
-                <span className="opacity-40">·</span>
-                <span>Joined {joinMonth} {joinYear}</span>
-              </p>
-              {location && (
-                <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                  <MapPin className="h-3 w-3 shrink-0" />{location}
-                </p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-0.5">
+                {username && (
+                  <p className="flex items-center gap-1 text-sm font-medium" style={{ color: "#a078ff" }}>
+                    <AtSign className="h-3.5 w-3.5" />{username}
+                  </p>
+                )}
+                <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Users className="h-3 w-3 shrink-0" />
+                    <span>Community Member</span>
+                  </div>
+                  {profile?.headline && (
+                    <>
+                      <span className="opacity-40">·</span>
+                      <span className="font-semibold text-brand-teal">{profile.headline}</span>
+                    </>
+                  )}
+                  <span className="opacity-40">·</span>
+                  <span>Joined {joinMonth} {joinYear}</span>
+                </div>
+                {location && (
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                    <MapPin className="h-3 w-3 shrink-0" />{location}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Right: buttons */}
-            <div className="flex gap-2 shrink-0">
+            <div className="flex gap-2 shrink-0 self-start md:self-center">
               {isEditing ? (
                 <>
                   <button
@@ -1578,7 +1684,7 @@ function ProfilePage() {
                     className="flex items-center gap-1.5 rounded-xl border border-brand-purple px-3.5 py-1.5 text-sm font-semibold text-white transition-all hover:brightness-110 disabled:opacity-60"
                     style={{ background: "linear-gradient(135deg,#a078ff 0%,#0566d9 100%)" }}
                   >
-                    <Edit3 className="h-3.5 w-3.5" />
+                    <Check className="h-3.5 w-3.5" />
                     {saving ? "Saving…" : "Done"}
                   </button>
                   <button
@@ -1591,7 +1697,7 @@ function ProfilePage() {
                 </>
               ) : (
                 <button
-                  onClick={() => { setIsEditing(true); }}
+                  onClick={startEditingProfile}
                   className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3.5 py-1.5 text-sm font-medium hover:bg-surface-2"
                 >
                   <Edit3 className="h-3.5 w-3.5" /> Edit Profile
@@ -1610,47 +1716,62 @@ function ProfilePage() {
         <div className="space-y-6">
           {/* Community Pass */}
           <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-brand p-6 text-white shadow-glow-purple">
-            <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+            <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
             <div className="relative">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wider text-white/80">Community Pass</p>
-                <button type="button" onClick={beginPassEdit} className="rounded-full bg-white/15 px-2 py-1 text-[10px] font-semibold hover:bg-white/25">Edit Community Pass</button>
+                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-white/90">
+                  <Shield className="h-3.5 w-3.5 text-brand-teal" />
+                  <span>Community Pass</span>
+                </div>
+                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-medium text-white/90">
+                  Member Credential
+                </span>
               </div>
               <div className="mt-4 flex items-center gap-3">
-                {avatarUrl && <img src={avatarUrl} alt="" className="h-12 w-12 rounded-xl object-cover ring-2 ring-white/40" />}
-                <div>
-                  <h2 className="font-display text-2xl font-bold">{fullName}</h2>
-                  {profile?.headline && passVisibility.headline && <p className="text-sm text-white/80">{profile.headline}</p>}
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="h-12 w-12 rounded-xl object-cover ring-2 ring-white/40 shrink-0" />
+                ) : (
+                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-white/20 font-display text-lg font-bold ring-2 ring-white/40 shrink-0">
+                    {initial}
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <h2 className="font-display text-xl font-bold truncate">{fullName}</h2>
+                  {profile?.headline ? (
+                    <p className="text-xs font-medium text-brand-teal truncate">{profile.headline}</p>
+                  ) : (
+                    <p className="text-xs text-white/70">Community Member</p>
+                  )}
+                  {username && <p className="text-[11px] text-white/60 truncate">@{username}</p>}
                 </div>
               </div>
-              {username && <p className="text-xs text-white/60">@{username}</p>}
-              <p className="mt-1 text-sm text-white/80">Community Member</p>
               <div className="mt-5 flex items-end justify-between gap-4">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                <div className="space-y-2 text-xs">
                   <div>
-                    <p className="text-white/60">Verified hours</p>
-                    <p className="font-display text-sm font-bold">{statUnavailable}</p>
+                    <p className="text-[11px] text-white/60">Verified hours</p>
+                    <p className="font-display text-sm font-bold text-white/90">{statUnavailable}</p>
                   </div>
                   <div>
-                    <p className="text-white/60">Events attended</p>
-                    <p className="font-display text-sm font-bold">{statUnavailable}</p>
+                    <p className="text-[11px] text-white/60">Events attended</p>
+                    <p className="font-display text-sm font-bold text-white/90">{statUnavailable}</p>
                   </div>
-                  <div>
-                    <p className="text-white/60">Groups</p>
-                    <p className="font-display text-sm font-bold">{statUnavailable}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/60">Connections</p>
-                    <p className="font-display text-sm font-bold">{statUnavailable}</p>
-                  </div>
+                  <p className="text-[10px] text-white/50 leading-tight">Activity records pending verified host check-ins</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => void openCommunityPass()}
-                  aria-label="Open your Community Pass PDF"
-                  className="grid h-20 w-20 place-items-center rounded-2xl bg-white text-brand-purple transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  aria-label="Open Community Pass PDF and print options"
+                  title="Click to preview & print PDF Pass"
+                  className="group flex flex-col items-center justify-center rounded-2xl bg-white p-2.5 text-slate-900 shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white shrink-0"
                 >
-                  {passQrUrl ? <img src={passQrUrl} alt="QR code for your shareable profile" className="h-16 w-16" /> : <QrCode className="h-14 w-14" aria-hidden="true" />}
+                  {passQrUrl ? (
+                    <img src={passQrUrl} alt="QR code" className="h-16 w-16" />
+                  ) : (
+                    <QrCode className="h-16 w-16 text-brand-purple" aria-hidden="true" />
+                  )}
+                  <span className="mt-1 text-[9px] font-bold uppercase tracking-wider text-brand-purple">
+                    View Pass
+                  </span>
                 </button>
               </div>
             </div>
@@ -1930,76 +2051,125 @@ function ProfilePage() {
           </section>
         </div>
       </div>
-      {editingPass && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-pass-title">
-          <form onSubmit={(event) => { event.preventDefault(); void savePassSettings(); }} className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div><h2 id="edit-pass-title" className="font-display text-lg font-semibold">Edit Community Pass</h2><p className="mt-1 text-xs text-muted-foreground">Name and photo reuse your main profile. Statistics are read-only and currently unavailable because verified activity tables are not implemented.</p></div>
-              <Eye className="h-5 w-5 text-brand-teal" aria-hidden="true" />
-            </div>
-            <div className="mt-5 space-y-4">
-              <label className="block text-xs"><span className="mb-1 block font-medium">Display name</span><input value={passName} onChange={(event) => setPassName(event.target.value)} required maxLength={120} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-brand-teal" /></label>
-              <label className="block text-xs"><span className="mb-1 block font-medium">Headline (optional)</span><input value={passHeadline} onChange={(event) => setPassHeadline(event.target.value)} maxLength={120} placeholder="Community volunteer" className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-brand-teal" /></label>
-              <label className="block text-xs"><span className="mb-1 block font-medium">Shareable introduction (optional)</span><textarea value={passIntro} onChange={(event) => setPassIntro(event.target.value)} maxLength={500} rows={3} placeholder="A short introduction for people who scan your pass." className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand-teal" /></label>
-              <label className="block text-xs"><span className="mb-1 block font-medium">Selected interests/skills (optional)</span><input value={passSkillsText} onChange={(event) => setPassSkillsText(event.target.value)} placeholder="Technology, Mentoring, Design" className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-brand-teal" /><span className="mt-1 block text-muted-foreground">Separate items with commas. This saves to your public pass profile, not private goals.</span></label>
-              <fieldset className="space-y-2 text-xs"><legend className="mb-1 font-medium">Show on your shareable profile</legend>
-                {(["headline", "intro", "skills"] as const).map((field) => <label key={field} className="flex items-center gap-2"><input type="checkbox" checked={passVisibility[field]} onChange={(event) => setPassVisibility((current) => ({ ...current, [field]: event.target.checked }))} /> {field === "intro" ? "Introduction" : field === "skills" ? "Selected skills" : "Headline"}</label>)}
-                <label className="flex items-center gap-2 text-muted-foreground"><input type="checkbox" checked={false} disabled /> Statistics (not available yet)</label>
-                <p className="pt-1 text-muted-foreground">The profile photo and username are always included. Verified statistics will not be shown until real activity records are available.</p>
-              </fieldset>
-            </div>
-            {passSaveError && <p className="mt-4 rounded-lg bg-red-400/10 px-3 py-2 text-xs text-red-200">{passSaveError}</p>}
-            {passSaveSuccess && <p className="mt-4 rounded-lg bg-brand-teal/10 px-3 py-2 text-xs text-brand-teal">Community Pass saved.</p>}
-            <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setEditingPass(false)} disabled={passSaving} className="rounded-lg border border-border px-3 py-2 text-xs">Cancel</button><button type="submit" disabled={passSaving} className="rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white">{passSaving ? "Saving…" : "Save"}</button></div>
-          </form>
-        </div>
-      )}
+      {/* Community Pass PDF Preview Modal */}
       {passOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="community-pass-title">
-          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md p-3 sm:p-6 transition-all duration-200 motion-reduce:transition-none"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="community-pass-title"
+          onClick={(e) => { if (e.target === e.currentTarget) closeCommunityPass(); }}
+        >
+          <div className="flex flex-col w-full max-w-3xl max-h-[92vh] overflow-hidden rounded-2xl sm:rounded-3xl border border-border/80 bg-surface shadow-2xl animate-in zoom-in-95 fade-in-0 duration-200 motion-reduce:animate-none">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-border/60 px-5 py-4 bg-surface">
               <div>
-                <h2 id="community-pass-title" className="font-display text-lg font-semibold">Community Pass</h2>
-                <p className="text-xs text-muted-foreground">Your private preview uses the same profile URL as the QR code.</p>
+                <h2 id="community-pass-title" className="font-display text-lg font-semibold flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-brand-teal" />
+                  <span>Community Pass</span>
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Official member credential with verified QR code
+                </p>
               </div>
-              <button type="button" onClick={closeCommunityPass} className="rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground">Close</button>
+              <button
+                type="button"
+                onClick={closeCommunityPass}
+                aria-label="Close Community Pass preview"
+                className="rounded-xl p-2 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div className="min-h-0 overflow-y-auto p-5">
-              {passBusy && <p className="py-12 text-center text-sm text-muted-foreground">Preparing your pass…</p>}
+
+            {/* Modal Body / PDF Preview Focus */}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+              {passBusy && (
+                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-brand-teal" />
+                  <p className="text-sm font-medium">Generating your Community Pass PDF…</p>
+                  <p className="text-xs text-muted-foreground">Rendering credentials and high-resolution QR pass</p>
+                </div>
+              )}
+
               {passError && (
-                <div className="space-y-4 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-100">
-                  <p>We couldn’t generate the PDF preview: {passError}</p>
+                <div className="space-y-4 rounded-xl border border-red-400/30 bg-red-400/10 p-5 text-sm text-red-100">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 shrink-0 text-red-300 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Unable to generate PDF preview</p>
+                      <p className="text-xs text-red-300/80 mt-1">{passError}</p>
+                      <button
+                        type="button"
+                        onClick={() => void openCommunityPass()}
+                        className="mt-2 text-xs font-semibold text-brand-teal hover:underline"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  </div>
+
                   {passQrUrl && (
-                    <div className="mx-auto max-w-sm rounded-xl bg-white p-5 text-center text-slate-900">
-                      <p className="font-semibold">{fullName}</p>
-                      {username && <p className="text-sm text-slate-500">@{username}</p>}
-                      <img src={passQrUrl} alt="QR code for your shareable profile" className="mx-auto my-4 aspect-square w-64" />
-                      <p className="break-all text-xs">{passProfileUrl}</p>
+                    <div className="mx-auto max-w-sm rounded-xl bg-white p-5 text-center text-slate-900 shadow-md">
+                      <p className="font-bold text-base">{fullName}</p>
+                      {profile?.headline && <p className="text-xs font-medium text-slate-600 mt-0.5">{profile.headline}</p>}
+                      {username && <p className="text-xs text-slate-500">@{username}</p>}
+                      <img src={passQrUrl} alt="QR code for your shareable profile" className="mx-auto my-3 aspect-square w-48" />
+                      <p className="break-all text-[11px] text-slate-500">{passProfileUrl}</p>
                     </div>
                   )}
                 </div>
               )}
+
               {!passBusy && !passError && passPdfUrl && (
-                <>
-                  <iframe title="Community Pass PDF preview" src={passPdfUrl} className="h-[58vh] min-h-[360px] w-full rounded-xl border border-border bg-white" />
-                  <div className="mt-4 rounded-xl border border-border/60 bg-white p-5 text-center text-slate-900">
-                    <p className="font-semibold">{fullName}</p>
-                    {username && <p className="text-sm text-slate-500">@{username}</p>}
-                    {passQrUrl && <img src={passQrUrl} alt="QR code for your shareable profile" className="mx-auto my-3 aspect-square w-48" />}
-                    <p className="break-all text-xs">{passProfileUrl}</p>
-                    <p className="mt-2 text-[11px] text-slate-500">If your device cannot embed PDFs, use this pass to scan the QR directly.</p>
+                <div className="flex flex-col items-center">
+                  <iframe
+                    title="Community Pass PDF preview"
+                    src={passPdfUrl}
+                    className="h-[58vh] min-h-[340px] max-h-[620px] w-full rounded-xl border border-border/60 bg-white shadow-inner"
+                  />
+                  <div className="mt-3 flex items-center justify-between w-full px-1 text-[11px] text-muted-foreground">
+                    <span>QR destination: <span className="font-mono text-brand-teal">{passProfileUrl}</span></span>
+                    <span className="hidden sm:inline">Use Download or Print below for offline copies</span>
                   </div>
-                </>
+                </div>
               )}
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-5 py-4">
-              {passPdfUrl && (
-                <>
-                  <a href={passPdfUrl} download={`${username ?? "community"}-pass.pdf`} className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2">Download PDF</a>
-                  <button type="button" onClick={printCommunityPass} className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2">Print</button>
-                </>
-              )}
-              <button type="button" onClick={closeCommunityPass} className="rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white hover:brightness-110">Done</button>
+
+            {/* Modal Footer Actions */}
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-border/60 px-5 py-3.5 bg-surface">
+              <span className="text-[11px] text-muted-foreground hidden md:inline">
+                MyCommNet Community Pass · Atlanta Community Network
+              </span>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {passPdfUrl && (
+                  <>
+                    <a
+                      href={passPdfUrl}
+                      download={`${username ?? "community"}-pass.pdf`}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-3.5 py-2 text-xs font-semibold text-foreground transition hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-brand-teal"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download PDF
+                    </a>
+                    <button
+                      type="button"
+                      onClick={printCommunityPass}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-3.5 py-2 text-xs font-semibold text-foreground transition hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-brand-teal"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      Print
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={closeCommunityPass}
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-brand px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-brand-teal"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         </div>
