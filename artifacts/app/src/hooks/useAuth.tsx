@@ -14,6 +14,15 @@ export type Profile = {
   avatar_url: string | null;
   banner_url: string | null;
   links: { label: string; url: string }[] | null;
+  headline: string | null;
+  pass_intro: string | null;
+  pass_visibility: {
+    headline?: boolean;
+    intro?: boolean;
+    skills?: boolean;
+    stats?: boolean;
+  } | null;
+  selected_skills: string[] | null;
 };
 
 type AuthContextType = {
