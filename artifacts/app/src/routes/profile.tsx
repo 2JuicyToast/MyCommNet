@@ -1376,6 +1376,15 @@ function ProfilePage() {
   useEffect(() => {
     void loadStats();
     void loadConnections();
+
+    function onFocus() {
+      void loadStats();
+      void loadConnections();
+    }
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+    };
   }, [user]);
 
   async function handleAcceptConnection(connectionId: string) {
@@ -1533,6 +1542,7 @@ function ProfilePage() {
           id: string;
           full_name: string;
           headline: string | null;
+          username?: string;
           avatar_url?: string;
           banner_url?: string;
           updated_at?: string;
@@ -1542,6 +1552,10 @@ function ProfilePage() {
           headline: trimmedHeadline || null,
           updated_at: new Date().toISOString(),
         };
+
+        if (!profile?.username && username) {
+          profileUpdates.username = username;
+        }
 
         if (pendingAvatarBlob) {
           const path = `${user.id}/avatar-${Date.now()}.jpg`;
@@ -1802,25 +1816,23 @@ function ProfilePage() {
       pdf.setFont("helvetica", "bold");
       pdf.text("Scan to view shareable profile & community connections", 105, 213, { align: "center" });
 
-      // 4 Statistics Cards
+      // Community Pass Statistics Cards: Events Attended & Service Hours (Connections & Groups Joined removed per specification)
       const statBoxes = [
-        { label: "EVENTS ATTENDED", value: String(stats.eventsAttended), x: 26, y: 224 },
-        { label: "SERVICE HOURS", value: String(stats.serviceHours), x: 65, y: 224 },
-        { label: "GROUPS JOINED", value: String(stats.groupsJoined), x: 104, y: 224 },
-        { label: "CONNECTIONS", value: String(stats.connections), x: 143, y: 224 },
+        { label: "EVENTS ATTENDED", value: String(stats.eventsAttended), x: 38, y: 224, width: 62 },
+        { label: "COMMUNITY SERVICE HOURS", value: String(stats.serviceHours), x: 110, y: 224, width: 62 },
       ];
 
       for (const box of statBoxes) {
         pdf.setFillColor(25, 33, 65);
-        pdf.roundedRect(box.x, box.y, 37, 20, 2.5, 2.5, "F");
+        pdf.roundedRect(box.x, box.y, box.width, 20, 2.5, 2.5, "F");
         pdf.setTextColor(203, 195, 215);
-        pdf.setFontSize(6.5);
+        pdf.setFontSize(7);
         pdf.setFont("helvetica", "bold");
-        pdf.text(box.label, box.x + 18.5, box.y + 6.5, { align: "center" });
+        pdf.text(box.label, box.x + box.width / 2, box.y + 6.5, { align: "center" });
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(14);
         pdf.setFont("helvetica", "bold");
-        pdf.text(box.value, box.x + 18.5, box.y + 15, { align: "center" });
+        pdf.text(box.value, box.x + box.width / 2, box.y + 15, { align: "center" });
       }
 
       // Card footer
