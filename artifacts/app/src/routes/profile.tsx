@@ -29,6 +29,9 @@ import {
   Plus,
   X,
   Check,
+  Target,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -82,11 +85,91 @@ function getLinkIcon(url: string): React.ComponentType<{ className?: string }> {
     return Globe;
   }
 }
-const goals = [
-  { label: "Earn 50 verified volunteer hours", progress: 72 },
-  { label: "Complete digital skills bootcamp", progress: 45 },
-  { label: "Find first part-time role", progress: 30 },
+type GoalStep = "discover" | "confirm";
+type GoalStatus = "active" | "completed";
+
+type UserGoal = {
+  id: string;
+  user_id: string;
+  goal_key: string;
+  title: string;
+  description: string;
+  action_label: string;
+  action_route: "/map" | "/groups";
+  status: GoalStatus;
+  step: GoalStep;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+};
+
+type GoalDefinition = {
+  key: string;
+  title: string;
+  description: string;
+  actionLabel: string;
+  actionRoute: "/map" | "/groups";
+  actionHint: string;
+  matchingTerms: string[];
+};
+
+const GOAL_DEFINITIONS: GoalDefinition[] = [
+  {
+    key: "attend-community-event",
+    title: "Attend a community event",
+    description: "Find an event that interests you, then confirm after you attend it.",
+    actionLabel: "Find events",
+    actionRoute: "/map",
+    actionHint: "On the Map, choose Events to discover local opportunities.",
+    matchingTerms: ["community", "event", "arts", "culture", "sports", "volunteer"],
+  },
+  {
+    key: "find-job-training",
+    title: "Find job training",
+    description: "Discover a training provider and confirm when you have taken the next real-world step.",
+    actionLabel: "Find training",
+    actionRoute: "/map",
+    actionHint: "On the Map, choose Training to look for nearby providers.",
+    matchingTerms: ["career", "job", "training", "education", "skill", "school"],
+  },
+  {
+    key: "find-local-resource",
+    title: "Find a useful local resource",
+    description: "Locate a library, computer, Wi-Fi spot, or another resource that helps you move forward.",
+    actionLabel: "Explore resources",
+    actionRoute: "/map",
+    actionHint: "Use the Map to search libraries, community centers, and local resource categories.",
+    matchingTerms: ["resource", "library", "computer", "wifi", "access", "education"],
+  },
+  {
+    key: "join-interest-group",
+    title: "Join a group related to your interests",
+    description: "Explore groups connected to a personal or career interest, then confirm when you join one.",
+    actionLabel: "Explore groups",
+    actionRoute: "/groups",
+    actionHint: "Browse Groups for communities related to your interests.",
+    matchingTerms: ["group", "community", "interest", "career", "mentoring", "sports", "arts"],
+  },
+  {
+    key: "find-mentor",
+    title: "Find a mentor",
+    description: "Explore mentoring communities and confirm when you have connected with a mentor.",
+    actionLabel: "Explore mentoring groups",
+    actionRoute: "/groups",
+    actionHint: "Browse Groups for mentoring communities and conversations.",
+    matchingTerms: ["mentor", "mentoring", "career", "education", "professional"],
+  },
+  {
+    key: "explore-education",
+    title: "Explore an educational program",
+    description: "Find a program or certification opportunity that fits your interests and confirm your next step.",
+    actionLabel: "Find education resources",
+    actionRoute: "/map",
+    actionHint: "Use the Map to explore libraries, education resources, and training options.",
+    matchingTerms: ["education", "school", "training", "certification", "learning", "career"],
+  },
 ];
+
 const timeline = [
   { icon: Briefcase, title: "Volunteer Coordinator", org: "Bright Futures Org", date: "Mar 2026 — Present", body: "Coordinating outreach for weekly resource fairs across Atlanta." },
   { icon: GraduationCap, title: "Digital Skills Bootcamp", org: "Code for Tomorrow", date: "Jan 2026 — Apr 2026", body: "Hands-on intro to HTML/CSS, JavaScript, and Git workflows." },
@@ -122,6 +205,243 @@ function labelChip(text: string, color: string) {
     >
       {clean}
     </span>
+  );
+}
+
+function preferenceTerms(prefs: UserPrefs | null): string[] {
+  if (!prefs) return [];
+  return [
+    ...(prefs.personal_interests ?? []),
+    ...(prefs.career_interests ?? []),
+    ...(prefs.resource_interests ?? []),
+    ...(prefs.access_preferences ?? []),
+  ].map((term) => term.toLowerCase());
+}
+
+function orderedGoalDefinitions(prefs: UserPrefs | null): GoalDefinition[] {
+  const terms = preferenceTerms(prefs);
+  return [...GOAL_DEFINITIONS].sort((a, b) => {
+    const score = (goal: GoalDefinition) =>
+      goal.matchingTerms.reduce((total, term) => total + (terms.some((userTerm) => userTerm.includes(term) || term.includes(userTerm)) ? 1 : 0), 0);
+    return score(b) - score(a);
+  });
+}
+
+function GoalsInProgress({ userId }: { userId: string }) {
+  const [goals, setGoals] = useState<UserGoal[]>([]);
+  const [prefs, setPrefs] = useState<UserPrefs | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadGoals = async () => {
+    setLoading(true);
+    setError(null);
+    const [goalResult, preferenceResult] = await Promise.all([
+      supabase.from("user_goals").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+      supabase.from("user_preferences").select("personal_interests, career_interests, resource_interests, access_preferences").eq("user_id", userId).maybeSingle(),
+    ]);
+
+    if (goalResult.error) {
+      setError(goalResult.error.message);
+    } else {
+      setGoals((goalResult.data ?? []) as UserGoal[]);
+    }
+    if (!preferenceResult.error) setPrefs((preferenceResult.data ?? null) as UserPrefs | null);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    void loadGoals();
+  }, [userId]);
+
+  async function addGoal(definition: GoalDefinition) {
+    if (goals.some((goal) => goal.goal_key === definition.key)) return;
+    setSaving(true);
+    setError(null);
+    const { data, error: insertError } = await supabase
+      .from("user_goals")
+      .insert({
+        user_id: userId,
+        goal_key: definition.key,
+        title: definition.title,
+        description: definition.description,
+        action_label: definition.actionLabel,
+        action_route: definition.actionRoute,
+        status: "active",
+        step: "discover",
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      setError(insertError.message);
+    } else if (data) {
+      setGoals((current) => [data as UserGoal, ...current]);
+      setShowSuggestions(false);
+    }
+    setSaving(false);
+  }
+
+  async function updateGoal(goal: UserGoal, updates: Partial<Pick<UserGoal, "step" | "status" | "completed_at">>) {
+    setSaving(true);
+    setError(null);
+    const { data, error: updateError } = await supabase
+      .from("user_goals")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", goal.id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      setError(updateError.message);
+    } else if (data) {
+      setGoals((current) => current.map((item) => item.id === goal.id ? data as UserGoal : item));
+    }
+    setSaving(false);
+  }
+
+  async function removeGoal(goal: UserGoal) {
+    setSaving(true);
+    setError(null);
+    const { error: deleteError } = await supabase
+      .from("user_goals")
+      .delete()
+      .eq("id", goal.id)
+      .eq("user_id", userId);
+
+    if (deleteError) {
+      setError(deleteError.message);
+    } else {
+      setGoals((current) => current.filter((item) => item.id !== goal.id));
+    }
+    setSaving(false);
+  }
+
+  const activeGoals = goals.filter((goal) => goal.status === "active");
+  const completedGoals = goals.filter((goal) => goal.status === "completed");
+  const definitions = orderedGoalDefinitions(prefs);
+  const availableDefinitions = definitions.filter((definition) => !goals.some((goal) => goal.goal_key === definition.key));
+
+  return (
+    <section className="rounded-2xl border border-border/60 bg-surface p-6">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 font-display text-lg font-semibold">
+            <Target className="h-4 w-4 text-brand-teal" /> Goals in Progress
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Choose a goal, take the next step, and confirm progress when it happens in real life.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowSuggestions((open) => !open)}
+          disabled={loading || saving || availableDefinitions.length === 0}
+          className="flex items-center gap-1.5 rounded-lg border border-brand-purple/50 px-3 py-1.5 text-xs font-semibold text-brand-purple transition hover:bg-brand-purple/10 disabled:opacity-50"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add a goal
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-200">
+          <span>{error}</span>
+          <button type="button" onClick={() => void loadGoals()} className="font-semibold hover:underline">Retry</button>
+        </div>
+      )}
+
+      {showSuggestions && (
+        <div className="mb-5 rounded-xl border border-border/60 bg-surface-2/50 p-3">
+          <p className="mb-2 text-xs font-semibold text-foreground">Suggested goals for you</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {availableDefinitions.map((definition) => (
+              <button
+                key={definition.key}
+                type="button"
+                onClick={() => void addGoal(definition)}
+                disabled={saving}
+                className="rounded-lg border border-border/60 px-3 py-2 text-left transition hover:border-brand-teal/60 hover:bg-surface-2 disabled:opacity-50"
+              >
+                <span className="block text-xs font-semibold">{definition.title}</span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{definition.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center gap-2 py-6 text-xs text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading your goals…
+        </div>
+      ) : activeGoals.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border/70 px-4 py-6 text-center">
+          <p className="text-sm font-medium">No active goals yet.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Choose a goal to turn something you discover into a next step.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {activeGoals.map((goal) => {
+            const definition = GOAL_DEFINITIONS.find((item) => item.key === goal.goal_key);
+            return (
+              <div key={goal.id} className="rounded-xl border border-border/60 bg-surface-2/40 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{goal.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{goal.description}</p>
+                  </div>
+                  <button type="button" onClick={() => void removeGoal(goal)} disabled={saving} className="self-end text-xs text-muted-foreground hover:text-red-300 disabled:opacity-50 sm:self-start">Remove</button>
+                </div>
+                <div className="mt-3 rounded-lg bg-background/50 px-3 py-2 text-xs">
+                  <p className="font-semibold text-brand-teal">
+                    {goal.step === "discover" ? "Next step: Discover an opportunity" : "Next step: Confirm your real-world progress"}
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    {goal.step === "discover" ? definition?.actionHint ?? "Use the linked feature to get started." : "MyCommNet cannot verify this milestone, so confirm it when it is true for you."}
+                  </p>
+                </div>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  {goal.step === "discover" ? (
+                    <>
+                      <Link to={goal.action_route} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white hover:brightness-110">
+                        {goal.action_label} <ExternalLink className="h-3 w-3" />
+                      </Link>
+                      <button type="button" onClick={() => void updateGoal(goal, { step: "confirm" })} disabled={saving} className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 disabled:opacity-50">
+                        I found an opportunity
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => void updateGoal(goal, { status: "completed", step: "confirm", completed_at: new Date().toISOString() })} disabled={saving} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50">
+                      <Check className="h-3.5 w-3.5" /> Mark goal complete
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {completedGoals.length > 0 && (
+        <div className="mt-6 border-t border-border/60 pt-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Completed goals</p>
+          <div className="space-y-2">
+            {completedGoals.map((goal) => (
+              <div key={goal.id} className="flex flex-col gap-2 rounded-lg bg-surface-2/40 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium">{goal.title}</p>
+                  <p className="text-[11px] text-brand-teal">Completed by you</p>
+                </div>
+                <button type="button" onClick={() => void removeGoal(goal)} disabled={saving} className="self-end text-xs text-muted-foreground hover:text-red-300 disabled:opacity-50 sm:self-auto">Remove</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -998,22 +1318,7 @@ function ProfilePage() {
           </div>
 
           {/* Goals */}
-          <section className="rounded-2xl border border-border/60 bg-surface p-6">
-            <h3 className="mb-4 font-display text-lg font-semibold">Goals in Progress</h3>
-            <div className="space-y-4">
-              {goals.map((g) => (
-                <div key={g.label}>
-                  <div className="mb-1.5 flex justify-between text-sm">
-                    <span>{g.label}</span>
-                    <span className="font-semibold text-brand-teal">{g.progress}%</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-surface-2">
-                    <div className="h-full rounded-full bg-gradient-brand" style={{ width: `${g.progress}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          {user && <GoalsInProgress userId={user.id} />}
 
           {/* Timeline */}
           <section className="rounded-2xl border border-border/60 bg-surface p-6">
