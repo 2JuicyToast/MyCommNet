@@ -7,4 +7,4 @@ alter table public.user_goals
 
 alter table public.user_goals
   add constraint user_goals_completion_context_check
-    check (completion_context in ('self', 'mycommnet_supported', 'in_app'));
+    check (completion_context in ('self', 'mycommnet', 'mycommnet_supported', 'in_app'));

@@ -91,7 +91,7 @@ function getLinkIcon(url: string): React.ComponentType<{ className?: string }> {
 }
 type GoalStep = "discover" | "confirm";
 type GoalStatus = "active" | "completed";
-type GoalContext = "self" | "mycommnet_supported" | "in_app";
+type GoalContext = "self" | "mycommnet" | "mycommnet_supported" | "in_app";
 
 type UserGoal = {
   id: string;
@@ -366,7 +366,7 @@ function defaultDraftForGoal(goal: UserGoal): CustomGoalDraft {
     description: goal.description === goal.completion_requirement ? "" : goal.description,
     requirement: goal.completion_requirement || goal.description,
     targetDate: goal.target_date ?? "",
-    context: goal.completion_context,
+    context: goal.completion_context === "mycommnet" ? "mycommnet_supported" : goal.completion_context,
     feature: goal.action_route === "/groups" ? "groups" : "map",
   };
 }
@@ -419,7 +419,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
         goal_type: definition.key.includes("training") || definition.key.includes("education") ? "learning" : "community",
         completion_requirement: definition.description,
         target_date: null,
-        completion_context: "mycommnet_supported",
+        completion_context: "mycommnet",
         action_label: definition.actionLabel,
         action_route: definition.actionRoute,
         status: "active",
@@ -467,7 +467,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
           goal_type: customGoal.goalType,
           completion_requirement: requirement,
           target_date: customGoal.targetDate || null,
-          completion_context: customGoal.context,
+          completion_context: customGoal.context === "mycommnet_supported" ? "mycommnet" : customGoal.context,
           action_label: actionLabel,
           action_route: actionRoute,
           updated_at: new Date().toISOString(),
@@ -654,10 +654,21 @@ function GoalsInProgress({ userId }: { userId: string }) {
                         <Calendar
                           mode="single"
                           captionLayout="dropdown"
+                          className="bg-white text-slate-900"
+                          classNames={{
+                            caption_label: "text-slate-900",
+                            dropdown: "bg-white text-slate-900",
+                            weekday: "text-slate-500",
+                            day_button: "text-slate-900 hover:bg-slate-100 hover:text-slate-900",
+                            today: "bg-slate-100 text-slate-900",
+                            disabled: "text-slate-400 opacity-50",
+                            outside: "text-slate-400",
+                          }}
                           selected={dateFromKey(customGoal.targetDate)}
                           defaultMonth={dateFromKey(customGoal.targetDate) ?? new Date()}
                           disabled={{ before: todayLocal() }}
                           onSelect={(date) => {
+                            if (date && localDateKey(date) < localDateKey()) return;
                             setCustomGoal((current) => ({ ...current, targetDate: date ? localDateKey(date) : "" }));
                             setDatePopoverOpen(false);
                           }}
@@ -771,7 +782,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
                       <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
                         <span className="rounded-full bg-background/70 px-2 py-0.5 capitalize">{goal.goal_type}</span>
                         {goal.target_date && <span className={`rounded-full px-2 py-0.5 ${goal.target_date <= localDateKey() ? "bg-red-400/10 text-red-300" : "bg-background/70"}`}>{goal.target_date <= localDateKey() ? "Overdue · " : "Target "}{formatGoalDate(goal.target_date)}</span>}
-                        <span className="rounded-full bg-background/70 px-2 py-0.5">{goal.completion_context === "mycommnet_supported" ? "MyCommNet-supported" : goal.completion_context === "in_app" ? "In-app" : "Self-directed"}</span>
+                        <span className="rounded-full bg-background/70 px-2 py-0.5">{goal.completion_context === "mycommnet" || goal.completion_context === "mycommnet_supported" ? "MyCommNet-supported" : goal.completion_context === "in_app" ? "In-app" : "Self-directed"}</span>
                       </div>
                   </div>
                   <div className="flex items-center gap-3 self-end sm:self-start">
@@ -798,7 +809,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
                         <span className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">Self-directed goal</span>
                       )}
                       <button type="button" onClick={() => void updateGoal(goal, { step: "confirm" })} disabled={saving} className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 disabled:opacity-50">
-                        {goal.completion_context === "mycommnet_supported" ? "I found an opportunity" : "I started working on it"}
+                        {goal.completion_context === "mycommnet" || goal.completion_context === "mycommnet_supported" ? "I found an opportunity" : "I started working on it"}
                       </button>
                     </>
                   ) : (
