@@ -1867,7 +1867,16 @@ function ProfilePage() {
                 </div>
               )}
               {!passBusy && !passError && passPdfUrl && (
-                <iframe title="Community Pass PDF preview" src={passPdfUrl} className="h-[58vh] min-h-[360px] w-full rounded-xl border border-border bg-white" />
+                <>
+                  <iframe title="Community Pass PDF preview" src={passPdfUrl} className="h-[58vh] min-h-[360px] w-full rounded-xl border border-border bg-white" />
+                  <div className="mt-4 rounded-xl border border-border/60 bg-white p-5 text-center text-slate-900">
+                    <p className="font-semibold">{fullName}</p>
+                    {username && <p className="text-sm text-slate-500">@{username}</p>}
+                    {passQrUrl && <img src={passQrUrl} alt="QR code for your shareable profile" className="mx-auto my-3 aspect-square w-48" />}
+                    <p className="break-all text-xs">{passProfileUrl}</p>
+                    <p className="mt-2 text-[11px] text-slate-500">If your device cannot embed PDFs, use this pass to scan the QR directly.</p>
+                  </div>
+                </>
               )}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-5 py-4">
