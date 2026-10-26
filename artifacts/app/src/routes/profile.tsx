@@ -94,8 +94,12 @@ type UserGoal = {
   goal_key: string;
   title: string;
   description: string;
+  goal_type: string;
+  completion_requirement: string;
+  target_date: string | null;
+  completion_context: "self" | "mycommnet";
   action_label: string;
-  action_route: "/map" | "/groups";
+  action_route: "/map" | "/groups" | null;
   status: GoalStatus;
   step: GoalStep;
   created_at: string;
@@ -111,6 +115,24 @@ type GoalDefinition = {
   actionRoute: "/map" | "/groups";
   actionHint: string;
   matchingTerms: string[];
+};
+
+type CustomGoalDraft = {
+  title: string;
+  goalType: string;
+  requirement: string;
+  targetDate: string;
+  context: "self" | "mycommnet";
+  feature: "map" | "groups";
+};
+
+const EMPTY_CUSTOM_GOAL: CustomGoalDraft = {
+  title: "",
+  goalType: "personal",
+  requirement: "",
+  targetDate: "",
+  context: "self",
+  feature: "map",
 };
 
 const GOAL_DEFINITIONS: GoalDefinition[] = [
@@ -233,6 +255,8 @@ function GoalsInProgress({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customGoal, setCustomGoal] = useState<CustomGoalDraft>(EMPTY_CUSTOM_GOAL);
   const [error, setError] = useState<string | null>(null);
 
   const loadGoals = async () => {
@@ -282,6 +306,51 @@ function GoalsInProgress({ userId }: { userId: string }) {
       setShowSuggestions(false);
     }
     setSaving(false);
+  }
+
+  async function addCustomGoal(event: React.FormEvent<HTMLFormElement>) {
+      event.preventDefault();
+      const title = customGoal.title.trim();
+      const requirement = customGoal.requirement.trim();
+      if (!title || !requirement) {
+        setError("Add a goal name and a clear completion requirement.");
+        return;
+      }
+
+      setSaving(true);
+      setError(null);
+      const actionRoute = customGoal.context === "mycommnet" ? `/${customGoal.feature}` as "/map" | "/groups" : null;
+      const actionLabel = customGoal.context === "mycommnet"
+        ? customGoal.feature === "map" ? "Open the Map" : "Explore Groups"
+        : "Track this myself";
+      const { data, error: insertError } = await supabase
+        .from("user_goals")
+        .insert({
+          user_id: userId,
+          goal_key: `custom-${crypto.randomUUID()}`,
+          title,
+          description: requirement,
+          goal_type: customGoal.goalType,
+          completion_requirement: requirement,
+          target_date: customGoal.targetDate || null,
+          completion_context: customGoal.context,
+          action_label: actionLabel,
+          action_route: actionRoute,
+          status: "active",
+          step: "discover",
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        setError(insertError.message);
+      } else if (data) {
+        setGoals((current) => [data as UserGoal, ...current]);
+        setCustomGoal(EMPTY_CUSTOM_GOAL);
+        setShowCustomForm(false);
+        setShowSuggestions(false);
+      }
+      setSaving(false);
   }
 
   async function updateGoal(goal: UserGoal, updates: Partial<Pick<UserGoal, "step" | "status" | "completed_at">>) {
@@ -339,7 +408,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
         <button
           type="button"
           onClick={() => setShowSuggestions((open) => !open)}
-          disabled={loading || saving || availableDefinitions.length === 0}
+          disabled={loading || saving}
           className="flex items-center gap-1.5 rounded-lg border border-brand-purple/50 px-3 py-1.5 text-xs font-semibold text-brand-purple transition hover:bg-brand-purple/10 disabled:opacity-50"
         >
           <Plus className="h-3.5 w-3.5" /> Add a goal
@@ -355,7 +424,101 @@ function GoalsInProgress({ userId }: { userId: string }) {
 
       {showSuggestions && (
         <div className="mb-5 rounded-xl border border-border/60 bg-surface-2/50 p-3">
-          <p className="mb-2 text-xs font-semibold text-foreground">Suggested goals for you</p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-foreground">Suggested goals for you</p>
+            <button
+              type="button"
+              onClick={() => setShowCustomForm((open) => !open)}
+              className="text-xs font-semibold text-brand-teal hover:underline"
+            >
+              {showCustomForm ? "Use a suggestion" : "Make my own goal"}
+            </button>
+          </div>
+          {showCustomForm ? (
+            <form onSubmit={addCustomGoal} className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-xs">
+                  <span className="mb-1 block font-medium">Goal name</span>
+                  <input
+                    value={customGoal.title}
+                    onChange={(event) => setCustomGoal((current) => ({ ...current, title: event.target.value }))}
+                    placeholder="e.g. Build a portfolio"
+                    maxLength={120}
+                    required
+                    className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-brand-teal"
+                  />
+                </label>
+                <label className="text-xs">
+                  <span className="mb-1 block font-medium">Goal type</span>
+                  <select
+                    value={customGoal.goalType}
+                    onChange={(event) => setCustomGoal((current) => ({ ...current, goalType: event.target.value }))}
+                    className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-brand-teal"
+                  >
+                    <option value="personal">Personal</option>
+                    <option value="career">Career</option>
+                    <option value="learning">Learning</option>
+                    <option value="community">Community</option>
+                    <option value="wellbeing">Wellbeing</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+              </div>
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium">How will you know it is complete?</span>
+                <textarea
+                  value={customGoal.requirement}
+                  onChange={(event) => setCustomGoal((current) => ({ ...current, requirement: event.target.value }))}
+                  placeholder="Describe the real-world result, not just opening a link."
+                  rows={2}
+                  maxLength={500}
+                  required
+                  className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-brand-teal"
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-xs">
+                  <span className="mb-1 block font-medium">Target completion date <span className="text-muted-foreground">(optional)</span></span>
+                  <input
+                    type="date"
+                    value={customGoal.targetDate}
+                    onChange={(event) => setCustomGoal((current) => ({ ...current, targetDate: event.target.value }))}
+                    className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-brand-teal"
+                  />
+                </label>
+                <fieldset className="text-xs">
+                  <legend className="mb-1 font-medium">Where will you do this?</legend>
+                  <div className="flex gap-3 pt-1">
+                    <label className="flex items-center gap-1.5">
+                      <input type="radio" name="goal-context" checked={customGoal.context === "self"} onChange={() => setCustomGoal((current) => ({ ...current, context: "self" }))} />
+                      Myself
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <input type="radio" name="goal-context" checked={customGoal.context === "mycommnet"} onChange={() => setCustomGoal((current) => ({ ...current, context: "mycommnet" }))} />
+                      MyCommNet
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+              {customGoal.context === "mycommnet" && (
+                <label className="block text-xs">
+                  <span className="mb-1 block font-medium">MyCommNet starting point</span>
+                  <select
+                    value={customGoal.feature}
+                    onChange={(event) => setCustomGoal((current) => ({ ...current, feature: event.target.value as "map" | "groups" }))}
+                    className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-brand-teal"
+                  >
+                    <option value="map">Map and local resource discovery</option>
+                    <option value="groups">Groups and community discovery</option>
+                  </select>
+                </label>
+              )}
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowCustomForm(false)} className="rounded-lg border border-border px-3 py-2 text-xs hover:bg-surface-2">Cancel</button>
+                <button type="submit" disabled={saving} className="rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50">Save custom goal</button>
+              </div>
+            </form>
+          ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {availableDefinitions.map((definition) => (
               <button
@@ -370,6 +533,7 @@ function GoalsInProgress({ userId }: { userId: string }) {
               </button>
             ))}
           </div>
+          )}
         </div>
       )}
 
@@ -392,6 +556,11 @@ function GoalsInProgress({ userId }: { userId: string }) {
                   <div className="min-w-0">
                     <p className="font-semibold">{goal.title}</p>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{goal.description}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
+                        <span className="rounded-full bg-background/70 px-2 py-0.5 capitalize">{goal.goal_type}</span>
+                        {goal.target_date && <span className="rounded-full bg-background/70 px-2 py-0.5">Target {goal.target_date}</span>}
+                        <span className="rounded-full bg-background/70 px-2 py-0.5">{goal.completion_context === "mycommnet" ? "Uses MyCommNet" : "Self-directed"}</span>
+                      </div>
                   </div>
                   <button type="button" onClick={() => void removeGoal(goal)} disabled={saving} className="self-end text-xs text-muted-foreground hover:text-red-300 disabled:opacity-50 sm:self-start">Remove</button>
                 </div>
@@ -406,11 +575,15 @@ function GoalsInProgress({ userId }: { userId: string }) {
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                   {goal.step === "discover" ? (
                     <>
-                      <Link to={goal.action_route} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white hover:brightness-110">
-                        {goal.action_label} <ExternalLink className="h-3 w-3" />
-                      </Link>
+                      {goal.action_route ? (
+                        <Link to={goal.action_route} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-white hover:brightness-110">
+                          {goal.action_label} <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      ) : (
+                        <span className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">Self-directed goal</span>
+                      )}
                       <button type="button" onClick={() => void updateGoal(goal, { step: "confirm" })} disabled={saving} className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 disabled:opacity-50">
-                        I found an opportunity
+                        {goal.completion_context === "mycommnet" ? "I found an opportunity" : "I started working on it"}
                       </button>
                     </>
                   ) : (
