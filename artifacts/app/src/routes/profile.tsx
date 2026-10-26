@@ -1168,8 +1168,34 @@ function ProfilePage() {
     if (profile?.banner_url) setBannerUrl(profile.banner_url);
   }, [profile]);
 
+  // Connection records state
+  type ConnectionRecord = {
+    id: string;
+    requester_id: string;
+    receiver_id: string;
+    status: "pending" | "accepted" | "declined";
+    created_at?: string;
+    otherUser?: {
+      id: string;
+      full_name: string | null;
+      username: string | null;
+      avatar_url: string | null;
+      headline: string | null;
+    };
+  };
+
+  const [connectionsList, setConnectionsList] = useState<ConnectionRecord[]>([]);
+  const [pendingIncoming, setPendingIncoming] = useState<ConnectionRecord[]>([]);
+  const [pendingOutgoing, setPendingOutgoing] = useState<ConnectionRecord[]>([]);
+  const [connLoading, setConnLoading] = useState(false);
+  const [connError, setConnError] = useState<string | null>(null);
+  const [showAddConnInput, setShowAddConnInput] = useState(false);
+  const [addConnUsername, setAddConnUsername] = useState("");
+  const [addConnBusy, setAddConnBusy] = useState(false);
+  const [addConnMsg, setAddConnMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   // Connect statistics to Supabase tables scoped strictly to the authenticated user
-  useEffect(() => {
+  async function loadStats() {
     if (!user) {
       setStats({
         eventsAttended: 0,
@@ -1183,112 +1209,269 @@ function ProfilePage() {
       return;
     }
 
-    let cancelled = false;
+    setStats((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      let events = 0;
+      let hours = 0;
+      let groups = 0;
+      let connections = 0;
+      let missingTables: string[] = [];
 
-    async function loadStats() {
-      if (!user) return;
-      setStats((prev) => ({ ...prev, loading: true, error: null }));
-      try {
-        let events = 0;
-        let hours = 0;
-        let groups = 0;
-        let connections = 0;
-        let missingTables: string[] = [];
+      // 1. Groups Joined (group_memberships count scoped to user.id)
+      const groupsRes = await supabase
+        .from("group_memberships")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
 
-        // 1. Groups Joined (group_memberships count scoped to user.id)
-        const groupsRes = await supabase
-          .from("group_memberships")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id);
+      if (groupsRes.error) {
+        if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(groupsRes.error.message)) {
+          missingTables.push("group_memberships");
+        } else {
+          console.error("Failed to query group_memberships:", groupsRes.error.message);
+        }
+      } else if (groupsRes.count !== null && groupsRes.count !== undefined) {
+        groups = groupsRes.count;
+      }
 
-        if (groupsRes.error) {
-          if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(groupsRes.error.message)) {
-            missingTables.push("group_memberships");
-          } else {
-            console.error("Failed to query group_memberships:", groupsRes.error.message);
+      // 2. Connections (user_connections count for accepted connections involving user)
+      const connRes = await supabase
+        .from("user_connections")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "accepted")
+        .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
+
+      if (connRes.error) {
+        if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(connRes.error.message)) {
+          missingTables.push("user_connections");
+        } else {
+          console.error("Failed to query user_connections:", connRes.error.message);
+        }
+      } else if (connRes.count !== null && connRes.count !== undefined) {
+        connections = connRes.count;
+      }
+
+      // 3. Events Attended (event_attendance verified records scoped to user.id)
+      const eventRes = await supabase
+        .from("event_attendance")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("verified", true);
+
+      if (eventRes.error) {
+        if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(eventRes.error.message)) {
+          missingTables.push("event_attendance");
+        } else {
+          console.error("Failed to query event_attendance:", eventRes.error.message);
+        }
+      } else if (eventRes.count !== null && eventRes.count !== undefined) {
+        events = eventRes.count;
+      }
+
+      // 4. Community Service Hours (approved hours sum from community_service_records)
+      const hoursRes = await supabase
+        .from("community_service_records")
+        .select("hours")
+        .eq("user_id", user.id)
+        .eq("status", "approved");
+
+      if (hoursRes.error) {
+        if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(hoursRes.error.message)) {
+          missingTables.push("community_service_records");
+        } else {
+          console.error("Failed to query community_service_records:", hoursRes.error.message);
+        }
+      } else if (hoursRes.data) {
+        hours = (hoursRes.data as { hours: number | null }[]).reduce((acc: number, row) => acc + (Number(row.hours) || 0), 0);
+      }
+
+      setStats({
+        eventsAttended: events,
+        serviceHours: hours,
+        groupsJoined: groups,
+        connections: connections,
+        loading: false,
+        error: null,
+        schemaPending: missingTables.length > 0,
+      });
+    } catch (err: any) {
+      setStats((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.message ?? "Error querying statistics",
+      }));
+    }
+  }
+
+  // Load user connections and pending requests
+  async function loadConnections() {
+    if (!user) {
+      setConnectionsList([]);
+      setPendingIncoming([]);
+      setPendingOutgoing([]);
+      return;
+    }
+    setConnLoading(true);
+    setConnError(null);
+    try {
+      const { data: rawConns, error } = await supabase
+        .from("user_connections")
+        .select("*")
+        .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (!rawConns || rawConns.length === 0) {
+        setConnectionsList([]);
+        setPendingIncoming([]);
+        setPendingOutgoing([]);
+        return;
+      }
+
+      const otherIds = Array.from(
+        new Set(
+          rawConns.map((c: any) => (c.requester_id === user.id ? c.receiver_id : c.requester_id))
+        )
+      ).filter(Boolean);
+
+      let profileMap: Record<string, any> = {};
+      if (otherIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name, username, avatar_url, headline")
+          .in("id", otherIds);
+
+        if (profiles) {
+          for (const p of profiles) {
+            profileMap[p.id] = p;
           }
-        } else if (groupsRes.count !== null && groupsRes.count !== undefined) {
-          groups = groupsRes.count;
-        }
-
-        // 2. Connections (user_connections count for accepted connections involving user)
-        const connRes = await supabase
-          .from("user_connections")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "accepted")
-          .or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`);
-
-        if (connRes.error) {
-          if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(connRes.error.message)) {
-            missingTables.push("user_connections");
-          } else {
-            console.error("Failed to query user_connections:", connRes.error.message);
-          }
-        } else if (connRes.count !== null && connRes.count !== undefined) {
-          connections = connRes.count;
-        }
-
-        // 3. Events Attended (event_attendance verified records scoped to user.id)
-        const eventRes = await supabase
-          .from("event_attendance")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("verified", true);
-
-        if (eventRes.error) {
-          if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(eventRes.error.message)) {
-            missingTables.push("event_attendance");
-          } else {
-            console.error("Failed to query event_attendance:", eventRes.error.message);
-          }
-        } else if (eventRes.count !== null && eventRes.count !== undefined) {
-          events = eventRes.count;
-        }
-
-        // 4. Community Service Hours (approved hours sum from community_service_records)
-        const hoursRes = await supabase
-          .from("community_service_records")
-          .select("hours")
-          .eq("user_id", user.id)
-          .eq("status", "approved");
-
-        if (hoursRes.error) {
-          if (/relation.*does not exist|not found|42P01|PGRST204|PGRST205/i.test(hoursRes.error.message)) {
-            missingTables.push("community_service_records");
-          } else {
-            console.error("Failed to query community_service_records:", hoursRes.error.message);
-          }
-        } else if (hoursRes.data) {
-          hours = (hoursRes.data as { hours: number | null }[]).reduce((acc: number, row) => acc + (Number(row.hours) || 0), 0);
-        }
-
-        if (!cancelled) {
-          setStats({
-            eventsAttended: events,
-            serviceHours: hours,
-            groupsJoined: groups,
-            connections: connections,
-            loading: false,
-            error: null,
-            schemaPending: missingTables.length > 0,
-          });
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          setStats((prev) => ({
-            ...prev,
-            loading: false,
-            error: err?.message ?? "Error querying statistics",
-          }));
         }
       }
-    }
 
+      const decorated: ConnectionRecord[] = rawConns.map((c: any) => {
+        const otherId = c.requester_id === user.id ? c.receiver_id : c.requester_id;
+        return {
+          ...c,
+          otherUser: profileMap[otherId] || {
+            id: otherId,
+            full_name: "Community Member",
+            username: null,
+            avatar_url: null,
+            headline: null,
+          },
+        };
+      });
+
+      setConnectionsList(decorated.filter((c) => c.status === "accepted"));
+      setPendingIncoming(decorated.filter((c) => c.status === "pending" && c.receiver_id === user.id));
+      setPendingOutgoing(decorated.filter((c) => c.status === "pending" && c.requester_id === user.id));
+    } catch (err: any) {
+      console.warn("user_connections query note:", err?.message);
+      setConnError(err?.message ?? "Error loading connections.");
+    } finally {
+      setConnLoading(false);
+    }
+  }
+
+  useEffect(() => {
     void loadStats();
-    return () => {
-      cancelled = true;
-    };
+    void loadConnections();
   }, [user]);
+
+  async function handleAcceptConnection(connectionId: string) {
+    try {
+      const { error } = await supabase
+        .from("user_connections")
+        .update({ status: "accepted" })
+        .eq("id", connectionId);
+      if (error) throw error;
+      await Promise.all([loadConnections(), loadStats()]);
+    } catch (err: any) {
+      setConnError(err?.message ?? "Failed to accept connection");
+    }
+  }
+
+  async function handleDeclineConnection(connectionId: string) {
+    try {
+      const { error } = await supabase
+        .from("user_connections")
+        .update({ status: "declined" })
+        .eq("id", connectionId);
+      if (error) throw error;
+      await Promise.all([loadConnections(), loadStats()]);
+    } catch (err: any) {
+      setConnError(err?.message ?? "Failed to decline connection");
+    }
+  }
+
+  async function handleCancelOutgoing(connectionId: string) {
+    try {
+      const { error } = await supabase
+        .from("user_connections")
+        .delete()
+        .eq("id", connectionId);
+      if (error) throw error;
+      await Promise.all([loadConnections(), loadStats()]);
+    } catch (err: any) {
+      setConnError(err?.message ?? "Failed to cancel connection request");
+    }
+  }
+
+  async function handleSendRequest() {
+    const targetUsername = addConnUsername.trim().replace(/^@/, "");
+    if (!targetUsername) return;
+    if (!user) return;
+    setAddConnBusy(true);
+    setAddConnMsg(null);
+    try {
+      const { data: targetProfile, error: pErr } = await supabase
+        .from("profiles")
+        .select("id, username, full_name")
+        .eq("username", targetUsername)
+        .maybeSingle();
+
+      if (pErr || !targetProfile) {
+        throw new Error(`Could not find a member with username @${targetUsername}`);
+      }
+
+      if (targetProfile.id === user.id) {
+        throw new Error("You cannot send a connection request to yourself.");
+      }
+
+      const { data: existing } = await supabase
+        .from("user_connections")
+        .select("id, status")
+        .or(
+          `and(requester_id.eq.${user.id},receiver_id.eq.${targetProfile.id}),and(requester_id.eq.${targetProfile.id},receiver_id.eq.${user.id})`
+        )
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.status === "accepted") {
+          throw new Error(`You are already connected with @${targetUsername}.`);
+        } else if (existing.status === "pending") {
+          throw new Error(`A pending connection request already exists with @${targetUsername}.`);
+        }
+      }
+
+      const { error: insErr } = await supabase.from("user_connections").insert({
+        requester_id: user.id,
+        receiver_id: targetProfile.id,
+        status: "pending",
+      });
+
+      if (insErr) throw insErr;
+
+      setAddConnMsg({ type: "success", text: `Connection request sent to @${targetUsername}!` });
+      setAddConnUsername("");
+      setShowAddConnInput(false);
+      await Promise.all([loadConnections(), loadStats()]);
+    } catch (err: any) {
+      setAddConnMsg({ type: "error", text: err?.message ?? "Failed to send connection request." });
+    } finally {
+      setAddConnBusy(false);
+    }
+  }
 
   function handleAvatarFileSelected(file: File) {
     setCropFile(file);
@@ -2228,6 +2411,229 @@ function ProfilePage() {
               );
             })}
           </div>
+
+          {/* Community Connections */}
+          <section className="rounded-2xl border border-border/60 bg-surface p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-brand-teal" />
+                <h3 className="font-display text-lg font-semibold">Community Connections</h3>
+                <span className="rounded-full bg-brand-purple/20 px-2 py-0.5 text-xs text-brand-teal font-medium">
+                  {connectionsList.length}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddConnInput((prev) => !prev);
+                  setAddConnMsg(null);
+                }}
+                className="flex items-center gap-1 text-xs font-semibold text-brand-teal hover:underline"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {showAddConnInput ? "Close" : "Connect with Member"}
+              </button>
+            </div>
+
+            {/* Send request form */}
+            {showAddConnInput && (
+              <div className="mb-4 rounded-xl border border-border bg-surface-2/60 p-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Send a connection request to another member using their @username:
+                </p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">@</span>
+                    <input
+                      type="text"
+                      value={addConnUsername}
+                      onChange={(e) => setAddConnUsername(e.target.value)}
+                      placeholder="username"
+                      className="h-8.5 w-full rounded-lg border border-border bg-surface pl-6 pr-2.5 text-xs text-foreground outline-none focus:border-brand-teal"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handleSendRequest();
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={addConnBusy || !addConnUsername.trim()}
+                    onClick={() => void handleSendRequest()}
+                    className="flex items-center gap-1 rounded-lg bg-gradient-brand px-3 py-1.5 text-xs font-semibold text-white hover:opacity-95 disabled:opacity-50"
+                  >
+                    {addConnBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Send Request"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {addConnMsg && (
+              <div
+                className={`mb-4 rounded-xl px-3 py-2 text-xs flex items-center justify-between ${
+                  addConnMsg.type === "success"
+                    ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                    : "border border-red-500/30 bg-red-500/10 text-red-200"
+                }`}
+              >
+                <span>{addConnMsg.text}</span>
+                <button
+                  type="button"
+                  onClick={() => setAddConnMsg(null)}
+                  className="text-xs opacity-70 hover:opacity-100 ml-2"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {connError && (
+              <p className="mb-3 text-xs text-amber-300">
+                Connection note: {connError}
+              </p>
+            )}
+
+            {/* Incoming pending requests */}
+            {pendingIncoming.length > 0 && (
+              <div className="mb-5 space-y-2 rounded-xl border border-brand-teal/30 bg-brand-teal/5 p-3.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wider text-brand-teal">
+                    Incoming Requests ({pendingIncoming.length})
+                  </p>
+                  <span className="text-[10px] text-muted-foreground">Awaiting your response</span>
+                </div>
+                <div className="space-y-2">
+                  {pendingIncoming.map((req) => (
+                    <div
+                      key={req.id}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-surface/80 p-2.5 border border-border/60"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {req.otherUser?.avatar_url ? (
+                          <img
+                            src={req.otherUser.avatar_url}
+                            alt=""
+                            className="h-8 w-8 rounded-full object-cover shrink-0"
+                          />
+                        ) : (
+                          <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-brand text-xs font-bold text-white shrink-0">
+                            {(req.otherUser?.full_name || "M").charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate">
+                            {req.otherUser?.full_name || "Community Member"}
+                          </p>
+                          {req.otherUser?.username && (
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              @{req.otherUser.username}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => void handleAcceptConnection(req.id)}
+                          className="flex items-center gap-1 rounded-lg bg-gradient-brand px-2.5 py-1 text-xs font-semibold text-white hover:opacity-95"
+                        >
+                          <Check className="h-3 w-3" /> Accept
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeclineConnection(req.id)}
+                          className="rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-surface-2"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Outgoing pending requests */}
+            {pendingOutgoing.length > 0 && (
+              <div className="mb-4 space-y-2 rounded-xl bg-surface-2/40 p-3">
+                <p className="text-[11px] font-semibold text-muted-foreground">
+                  Pending Sent Requests ({pendingOutgoing.length})
+                </p>
+                <div className="space-y-1.5">
+                  {pendingOutgoing.map((req) => (
+                    <div
+                      key={req.id}
+                      className="flex items-center justify-between gap-2 text-xs py-1 px-2 rounded-lg bg-surface/50"
+                    >
+                      <span className="truncate">
+                        {req.otherUser?.full_name || "Member"}{" "}
+                        {req.otherUser?.username ? `(@${req.otherUser.username})` : ""}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-muted-foreground">Pending</span>
+                        <button
+                          type="button"
+                          onClick={() => void handleCancelOutgoing(req.id)}
+                          className="text-[10px] text-red-300 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Accepted connections list */}
+            {connLoading && connectionsList.length === 0 ? (
+              <div className="flex items-center justify-center py-6 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2 text-brand-teal" />
+                <span className="text-xs">Loading connections…</span>
+              </div>
+            ) : connectionsList.length === 0 ? (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                No active connections yet. Share your Community Pass QR code or use "Connect with Member" above to grow your network.
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {connectionsList.map((conn) => (
+                  <div
+                    key={conn.id}
+                    className="flex items-center gap-3 rounded-xl border border-border/60 bg-surface-2/40 p-2.5"
+                  >
+                    {conn.otherUser?.avatar_url ? (
+                      <img
+                        src={conn.otherUser.avatar_url}
+                        alt=""
+                        className="h-10 w-10 rounded-xl object-cover shrink-0"
+                      />
+                    ) : (
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-brand text-sm font-bold text-white shrink-0">
+                        {(conn.otherUser?.full_name || "C").charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold truncate">
+                        {conn.otherUser?.full_name || "Community Member"}
+                      </p>
+                      {conn.otherUser?.headline ? (
+                        <p className="text-[10px] text-brand-teal truncate">
+                          {conn.otherUser.headline}
+                        </p>
+                      ) : conn.otherUser?.username ? (
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          @{conn.otherUser.username}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="rounded-full bg-brand-teal/15 px-2 py-0.5 text-[10px] font-medium text-brand-teal shrink-0">
+                      Connected
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
           {/* Goals */}
           {user && <GoalsInProgress userId={user.id} />}

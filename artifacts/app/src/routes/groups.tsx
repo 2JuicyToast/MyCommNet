@@ -1,6 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell, PageHeader } from "@/components/AppShell";
-import { Search, Plus, Sparkles, Calendar, MessageSquare, ArrowRight } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase";
+import {
+  Search,
+  Plus,
+  Sparkles,
+  Calendar,
+  MessageSquare,
+  ArrowRight,
+  Check,
+  Loader2,
+  AlertCircle,
+  Users,
+} from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
 
 export const Route = createFileRoute("/groups")({
   head: () => ({
@@ -20,92 +34,74 @@ export const Route = createFileRoute("/groups")({
   component: GroupsPage,
 });
 
-const categories = [
-  "All",
-  "Youth",
-  "Education",
-  "Mentoring",
-  "Sports",
-  "Arts & Culture",
-  "Community",
-];
+export type CommunityGroup = {
+  id: string;
+  name: string;
+  description?: string | null;
+  desc?: string | null;
+  category?: string | null;
+  cat?: string | null;
+  tag?: string | null;
+  members_count?: number | null;
+  online_count?: number | null;
+  created_at?: string;
+};
 
-const featured = [
+// Starter fallback groups if query has not returned yet or is waiting on live project
+const STARTER_GROUPS: CommunityGroup[] = [
   {
+    id: "g-1",
     name: "Youth Future Leaders",
     desc: "Empowering youth to lead and create change in our communities.",
-    members: "1.2K",
-    online: 24,
     tag: "Youth",
   },
   {
+    id: "g-2",
     name: "Next Chapter Book Club",
     desc: "Read, discuss, and grow together—one book at a time.",
-    members: "842",
-    online: 18,
-    tag: "Arts",
+    tag: "Arts & Culture",
   },
   {
+    id: "g-3",
     name: "MentorConnect",
     desc: "Mentorship and guidance for students and young professionals.",
-    members: "975",
-    online: 15,
     tag: "Mentoring",
   },
-];
-
-const suggested = [
   {
+    id: "g-4",
     name: "Tech Forward",
     desc: "Learn tech skills, share resources, and build your future.",
-    cat: "Education",
-    members: "1.1K",
-    online: 31,
+    tag: "Education",
   },
   {
+    id: "g-5",
     name: "Community Hoops",
     desc: "Play. Compete. Connect. All skill levels welcome!",
-    cat: "Sports",
-    members: "643",
-    online: 12,
+    tag: "Sports",
   },
   {
+    id: "g-6",
     name: "Community Changemakers",
     desc: "Local action. Real impact. Be the change.",
-    cat: "Community",
-    members: "712",
-    online: 9,
+    tag: "Community",
   },
   {
+    id: "g-7",
     name: "Inspire & Create",
     desc: "A space for artists, writers, and dreamers.",
-    cat: "Arts",
-    members: "389",
-    online: 7,
+    tag: "Arts & Culture",
   },
-];
-
-const yourGroups = [
   {
+    id: "g-8",
     name: "Tech Creators Hub",
-    tagline: "Design · Code · Build",
-    members: 128,
-    online: 8,
-    unread: 2,
+    desc: "Design, code, build together. Regular hack sessions and project sharing.",
+    tag: "Education",
   },
   {
-    name: "Community Hoops",
-    tagline: "Win together. Grow together.",
-    members: 243,
-    online: 14,
-    unread: 1,
-  },
-  {
+    id: "g-9",
     name: "Local Changemakers",
-    tagline: "Small actions. Big impact.",
-    members: 156,
-    online: 6,
-    unread: 3,
+    desc: "Grassroots civic initiatives and community improvement projects.",
+    tag: "Community",
   },
 ];
 
@@ -137,30 +133,62 @@ const discussions = [
   },
 ];
 
-function GroupCard({ g, suggested = false }: { g: any; suggested?: boolean }) {
+function GroupCard({
+  group,
+  isJoined,
+  isBusy,
+  memberCount,
+  onToggleJoin,
+}: {
+  group: CommunityGroup;
+  isJoined: boolean;
+  isBusy: boolean;
+  memberCount: number;
+  onToggleJoin: (group: CommunityGroup) => void;
+}) {
+  const category = group.category || group.cat || group.tag;
+  const description = group.description || group.desc || "";
+
   return (
-    <article className="group flex flex-col rounded-2xl border border-border/60 bg-surface p-5 transition hover:-translate-y-0.5 hover:border-brand-purple/40">
-      <div className="flex items-center justify-between">
-        <span className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-brand font-display text-base font-bold text-white shadow-glow-purple">
-          {g.name.charAt(0)}
-        </span>
-        {(g.cat || g.tag) && (
-          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-            {g.cat || g.tag}
+    <article className="group flex flex-col justify-between rounded-2xl border border-border/60 bg-surface p-5 transition hover:-translate-y-0.5 hover:border-brand-purple/40">
+      <div>
+        <div className="flex items-center justify-between">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-brand font-display text-base font-bold text-white shadow-glow-purple">
+            {group.name.charAt(0)}
           </span>
-        )}
-      </div>
-      <h3 className="mt-3 font-display text-base font-semibold">{g.name}</h3>
-      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{g.desc}</p>
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">{g.members}</span> members
-          <span className="ml-2 inline-flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-teal" /> {g.online} online
-          </span>
+          {category && (
+            <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {category}
+            </span>
+          )}
         </div>
-        <button className="rounded-lg bg-gradient-brand px-3 py-1.5 text-xs font-semibold text-white hover:opacity-95">
-          Join
+        <h3 className="mt-3 font-display text-base font-semibold">{group.name}</h3>
+        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="mt-4 flex items-center justify-between pt-2 border-t border-border/40">
+        <div className="text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">{memberCount}</span> {memberCount === 1 ? "member" : "members"}
+        </div>
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => onToggleJoin(group)}
+          className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+            isJoined
+              ? "border border-brand-teal/40 bg-brand-teal/15 text-brand-teal hover:bg-brand-teal/25"
+              : "bg-gradient-brand text-white hover:opacity-95"
+          } disabled:opacity-50`}
+        >
+          {isBusy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : isJoined ? (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              <span>Joined</span>
+            </>
+          ) : (
+            <span>Join</span>
+          )}
         </button>
       </div>
     </article>
@@ -168,6 +196,165 @@ function GroupCard({ g, suggested = false }: { g: any; suggested?: boolean }) {
 }
 
 function GroupsPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [groups, setGroups] = useState<CommunityGroup[]>(STARTER_GROUPS);
+  const [joinedGroupIds, setJoinedGroupIds] = useState<Set<string>>(new Set());
+  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busyGroupId, setBusyGroupId] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+
+  // Load groups from community_groups and memberships from group_memberships
+  async function loadData() {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Fetch community_groups
+      const { data: groupData, error: groupErr } = await supabase
+        .from("community_groups")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (groupErr) {
+        throw new Error(groupErr.message);
+      }
+
+      if (groupData && groupData.length > 0) {
+        setGroups(groupData as CommunityGroup[]);
+      }
+
+      // 2. Fetch all group_memberships to compute accurate counts
+      const { data: allMemberships, error: countErr } = await supabase
+        .from("group_memberships")
+        .select("group_id");
+
+      if (!countErr && allMemberships) {
+        const counts: Record<string, number> = {};
+        for (const m of allMemberships as { group_id: string }[]) {
+          if (m.group_id) {
+            counts[m.group_id] = (counts[m.group_id] || 0) + 1;
+          }
+        }
+        setMemberCounts(counts);
+      }
+
+      // 3. Fetch authenticated user's memberships
+      if (user) {
+        const { data: userMemberships, error: userMemberErr } = await supabase
+          .from("group_memberships")
+          .select("group_id")
+          .eq("user_id", user.id);
+
+        if (userMemberErr) {
+          console.error("Error fetching user group_memberships:", userMemberErr.message);
+        } else if (userMemberships) {
+          setJoinedGroupIds(new Set((userMemberships as { group_id: string }[]).map((m) => m.group_id)));
+        }
+      } else {
+        setJoinedGroupIds(new Set());
+      }
+    } catch (err: any) {
+      console.warn("community_groups query note:", err?.message);
+      setError(err?.message ?? "Error querying community_groups");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadData();
+  }, [user]);
+
+  // Handle Join / Leave actions
+  async function handleToggleJoin(group: CommunityGroup) {
+    if (!user) {
+      void navigate({ to: "/login", search: { redirect: "/groups" } });
+      return;
+    }
+
+    const isCurrentlyJoined = joinedGroupIds.has(group.id);
+    setBusyGroupId(group.id);
+    setActionError(null);
+
+    try {
+      if (isCurrentlyJoined) {
+        // Leave group
+        const { error: leaveErr } = await supabase
+          .from("group_memberships")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("group_id", group.id);
+
+        if (leaveErr) throw leaveErr;
+
+        setJoinedGroupIds((prev) => {
+          const next = new Set(prev);
+          next.delete(group.id);
+          return next;
+        });
+        setMemberCounts((prev) => ({
+          ...prev,
+          [group.id]: Math.max(0, (prev[group.id] || 1) - 1),
+        }));
+      } else {
+        // Join group
+        const { error: joinErr } = await supabase
+          .from("group_memberships")
+          .insert({
+            user_id: user.id,
+            group_id: group.id,
+          });
+
+        if (joinErr) throw joinErr;
+
+        setJoinedGroupIds((prev) => new Set([...prev, group.id]));
+        setMemberCounts((prev) => ({
+          ...prev,
+          [group.id]: (prev[group.id] || 0) + 1,
+        }));
+      }
+    } catch (err: any) {
+      console.error("Group action failed:", err);
+      setActionError(err?.message ?? "Failed to update group membership.");
+    } finally {
+      setBusyGroupId(null);
+    }
+  }
+
+  // Derive unique categories from groups
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const g of groups) {
+      const c = g.category || g.cat || g.tag;
+      if (c) set.add(c);
+    }
+    return ["All", ...Array.from(set)];
+  }, [groups]);
+
+  // Filter groups by category and search query
+  const filteredGroups = useMemo(() => {
+    return groups.filter((g) => {
+      const cat = g.category || g.cat || g.tag || "Community";
+      const matchesCategory = selectedCategory === "All" || cat.toLowerCase() === selectedCategory.toLowerCase();
+      const matchesSearch =
+        !searchQuery.trim() ||
+        g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (g.description || g.desc || "").toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [groups, selectedCategory, searchQuery]);
+
+  // Groups user has joined for sidebar
+  const userJoinedGroups = useMemo(() => {
+    return groups.filter((g) => joinedGroupIds.has(g.id));
+  }, [groups, joinedGroupIds]);
+
   return (
     <AppShell>
       {/* Hero strip */}
@@ -184,29 +371,53 @@ function GroupsPage() {
           </p>
         </div>
         <div className="flex justify-end">
-          <button className="flex items-center gap-2 rounded-xl bg-gradient-brand px-4 py-3 text-sm font-semibold text-white shadow-glow-purple">
-            <Plus className="h-4 w-4" /> Create a Group
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById("groups-list");
+              el?.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="flex items-center gap-2 rounded-xl bg-gradient-brand px-4 py-3 text-sm font-semibold text-white shadow-glow-purple"
+          >
+            <Users className="h-4 w-4" /> Browse Community Groups
           </button>
         </div>
       </div>
 
       <PageHeader title="Groups" subtitle="Connect, learn, and grow together." />
 
+      {/* Error alerts */}
+      {actionError && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-200">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{actionError}</span>
+        </div>
+      )}
+      {error && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Database note: {error}</span>
+        </div>
+      )}
+
       {/* Search + filters */}
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5">
           <Search className="h-4 w-4 text-muted-foreground" />
           <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search groups or topics..."
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {categories.map((c, i) => (
+          {categories.map((c) => (
             <button
               key={c}
-              className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium ${
-                i === 0
+              onClick={() => setSelectedCategory(c)}
+              className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                selectedCategory === c
                   ? "bg-gradient-brand text-white"
                   : "bg-surface text-muted-foreground ring-1 ring-border hover:text-foreground"
               }`}
@@ -217,60 +428,95 @@ function GroupsPage() {
         </div>
       </div>
 
-      {/* Featured */}
-      <section className="mb-12">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 font-display text-xl font-semibold">
-            <Sparkles className="h-5 w-5 text-brand-teal" /> Featured Groups
-          </h2>
-          <button className="flex items-center gap-1 text-sm text-brand-teal hover:underline">
-            View all <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {featured.map((g) => (
-            <GroupCard key={g.name} g={g} />
-          ))}
-        </div>
-      </section>
-
-      <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
-        {/* Suggested */}
+      <div id="groups-list" className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
+        {/* Main groups grid */}
         <section>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-xl font-semibold">Suggested for You</h2>
-            <span className="text-xs text-muted-foreground">Based on your interests</span>
+            <h2 className="flex items-center gap-2 font-display text-xl font-semibold">
+              <Sparkles className="h-5 w-5 text-brand-teal" />
+              <span>Available Groups</span>
+              <span className="text-xs font-normal text-muted-foreground">({filteredGroups.length})</span>
+            </h2>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {suggested.map((g) => (
-              <GroupCard key={g.name} g={g} suggested />
-            ))}
-          </div>
+
+          {loading && groups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-border/60 bg-surface p-12 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin text-brand-teal mb-2" />
+              <p className="text-xs">Loading community groups from database…</p>
+            </div>
+          ) : filteredGroups.length === 0 ? (
+            <div className="rounded-2xl border border-border/60 bg-surface p-8 text-center text-sm text-muted-foreground">
+              No groups match your search or filter. Try a different query.
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {filteredGroups.map((g) => (
+                <GroupCard
+                  key={g.id}
+                  group={g}
+                  isJoined={joinedGroupIds.has(g.id)}
+                  isBusy={busyGroupId === g.id}
+                  memberCount={memberCounts[g.id] ?? 0}
+                  onToggleJoin={handleToggleJoin}
+                />
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Sidebar: Your groups + Upcoming */}
         <aside className="space-y-6">
           <section className="rounded-2xl border border-border/60 bg-surface p-5">
-            <h2 className="mb-4 font-display text-lg font-semibold">Your Groups</h2>
-            <div className="space-y-3">
-              {yourGroups.map((g) => (
-                <div
-                  key={g.name}
-                  className="flex items-center gap-3 rounded-xl bg-surface-2/60 p-3"
-                >
-                  <span className="grid h-10 w-10 place-items-center rounded-lg bg-gradient-brand text-sm font-bold text-white">
-                    {g.name.charAt(0)}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">{g.name}</p>
-                    <p className="text-[11px] text-muted-foreground">{g.tagline}</p>
-                  </div>
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-purple text-[11px] font-semibold text-white">
-                    {g.unread}
-                  </span>
-                </div>
-              ))}
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold">Your Groups</h2>
+              {user && (
+                <span className="rounded-full bg-brand-purple/20 px-2 py-0.5 text-xs text-brand-teal font-medium">
+                  {userJoinedGroups.length}
+                </span>
+              )}
             </div>
+            {!user ? (
+              <p className="text-xs text-muted-foreground">
+                <a href="/login?redirect=/groups" className="text-brand-teal underline">
+                  Sign in
+                </a>{" "}
+                to join groups and keep track of your memberships on your Community Pass.
+              </p>
+            ) : userJoinedGroups.length === 0 ? (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                You haven't joined any groups yet. Browse the community groups and click <strong>Join</strong> to connect with your community!
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {userJoinedGroups.map((g) => (
+                  <div
+                    key={g.id}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-surface-2/60 p-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-brand text-sm font-bold text-white">
+                        {g.name.charAt(0)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{g.name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {g.category || g.cat || g.tag || "Community"}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busyGroupId === g.id}
+                      onClick={() => handleToggleJoin(g)}
+                      className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-red-300 hover:bg-red-500/10 transition-colors"
+                      title="Leave group"
+                    >
+                      Leave
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="rounded-2xl border border-border/60 bg-surface p-5">
