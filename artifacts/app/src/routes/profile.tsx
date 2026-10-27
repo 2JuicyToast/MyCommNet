@@ -39,6 +39,10 @@ import {
   Printer,
   AlertTriangle,
   IdCard,
+  Info,
+  Clock,
+  FileText,
+  ArrowRight,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -266,12 +270,12 @@ const HELP_SUGGESTIONS: HelpSuggestion[] = [
   },
 ];
 
-const timeline = [
+const SAMPLE_TIMELINE_EXAMPLES = [
   { icon: Briefcase, title: "Volunteer Coordinator", org: "Bright Futures Org", date: "Mar 2026 — Present", body: "Coordinating outreach for weekly resource fairs across Atlanta." },
   { icon: GraduationCap, title: "Digital Skills Bootcamp", org: "Code for Tomorrow", date: "Jan 2026 — Apr 2026", body: "Hands-on intro to HTML/CSS, JavaScript, and Git workflows." },
   { icon: CalendarIcon, title: "Community Resource Fair", org: "Unity Collective", date: "Nov 2025", body: "Helped onboard 60+ residents to local services. Verified 8 hours." },
 ];
-const saved = [
+const SAMPLE_SAVED_EXAMPLES = [
   { label: "TechConnect Hub", type: "Resource" },
   { label: "Community Resource Fair", type: "Event" },
   { label: "MentorConnect", type: "Group" },
@@ -2406,17 +2410,45 @@ function ProfilePage() {
 
           {/* Saved */}
           <section className="rounded-2xl border border-border/60 bg-surface p-5">
-            <h3 className="mb-3 flex items-center gap-2 font-display text-base font-semibold">
-              <Bookmark className="h-4 w-4 text-brand-teal" /> Saved
-            </h3>
-            <ul className="space-y-2">
-              {saved.map((s) => (
-                <li key={s.label} className="flex items-center justify-between rounded-lg bg-surface-2/60 px-3 py-2 text-sm">
-                  <span>{s.label}</span>
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.type}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 font-display text-base font-semibold">
+                <Bookmark className="h-4 w-4 text-brand-teal" /> Saved
+              </h3>
+              <span className="rounded-full bg-brand-purple/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-purple">
+                Coming Soon
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border/80 bg-surface-2/70 p-3.5 mb-3.5 text-left">
+              <div className="flex items-start gap-2.5">
+                <Info className="h-4 w-4 text-brand-teal shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Saved — Coming Soon</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                    This feature is still in development and is not saving your items yet. Soon you will be able to bookmark local opportunities, events, and resources directly to your profile.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 px-1">
+                Sample Preview Items (Design Reference)
+              </p>
+              <ul className="space-y-2 opacity-85">
+                {SAMPLE_SAVED_EXAMPLES.map((s) => (
+                  <li key={s.label} className="flex items-center justify-between rounded-lg bg-surface-2/40 border border-border/40 px-3 py-2 text-xs">
+                    <span className="font-medium text-foreground/90">{s.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] uppercase tracking-wider rounded bg-surface px-1.5 py-0.5 text-muted-foreground border border-border/60">
+                        {s.type}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground/60 italic">Example</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </section>
 
           {/* Personalization */}
@@ -2479,17 +2511,41 @@ function ProfilePage() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "Connections", value: stats.connections, icon: Users },
-              { label: "Groups Joined", value: stats.groupsJoined, icon: Heart },
+              { label: "Connections", value: stats.connections, icon: Users, href: "/connections", description: "View your accepted connections" },
+              { label: "Groups Joined", value: stats.groupsJoined, icon: Heart, href: "/my-groups", description: "View your joined community groups" },
               { label: "Community Hours", value: stats.serviceHours, icon: Award },
               { label: "Events Attended", value: stats.eventsAttended, icon: CalendarDays },
             ].map((s) => {
               const Icon = s.icon;
+              const content = (
+                <>
+                  <Icon className="mx-auto mb-2 h-5 w-5 text-brand-teal transition-transform group-hover:scale-110" />
+                  <p className="font-display text-2xl font-bold">{s.value}</p>
+                  <p className="text-[11px] text-muted-foreground group-hover:text-foreground transition-colors">{s.label}</p>
+                  {s.href && (
+                    <span className="mt-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold text-brand-teal group-hover:underline">
+                      View all →
+                    </span>
+                  )}
+                </>
+              );
+
+              if (s.href) {
+                return (
+                  <Link
+                    key={s.label}
+                    to={s.href}
+                    className="group rounded-2xl border border-border/60 bg-surface p-4 text-center transition-all hover:bg-surface-2 hover:border-brand-purple/40 hover:shadow-glow-purple/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal cursor-pointer"
+                    title={s.description}
+                  >
+                    {content}
+                  </Link>
+                );
+              }
+
               return (
                 <div key={s.label} className="rounded-2xl border border-border/60 bg-surface p-4 text-center">
-                  <Icon className="mx-auto mb-2 h-5 w-5 text-brand-teal" />
-                  <p className="font-display text-2xl font-bold">{s.value}</p>
-                  <p className="text-[11px] text-muted-foreground">{s.label}</p>
+                  {content}
                 </div>
               );
             })}
@@ -2723,24 +2779,62 @@ function ProfilePage() {
 
           {/* Timeline */}
           <section className="rounded-2xl border border-border/60 bg-surface p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="font-display text-lg font-semibold">My Timeline</h3>
-              <button className="text-xs text-brand-teal hover:underline">Export for resume →</button>
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="font-display text-lg font-semibold">My Timeline</h3>
+                <span className="rounded-full bg-brand-teal/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-teal">
+                  Coming Soon
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled
+                  title="Resume export will become available once real verified activities are recorded on your timeline."
+                  className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-surface-2/60 px-3 py-1.5 text-xs font-medium text-muted-foreground opacity-60 cursor-not-allowed"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  <span>Export for Resume (Coming Soon)</span>
+                </button>
+              </div>
             </div>
-            <div className="relative space-y-6 border-l border-border/60 pl-6">
-              {timeline.map((t, i) => {
-                const Icon = t.icon;
-                return (
-                  <div key={i} className="relative">
-                    <span className="absolute -left-[34px] grid h-7 w-7 place-items-center rounded-full bg-gradient-brand shadow-glow-purple">
-                      <Icon className="h-3.5 w-3.5 text-white" />
-                    </span>
-                    <p className="font-display text-base font-semibold">{t.title}</p>
-                    <p className="text-xs text-muted-foreground">{t.org} · {t.date}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{t.body}</p>
-                  </div>
-                );
-              })}
+
+            <div className="mb-5 rounded-xl border border-border/80 bg-surface-2/60 p-4">
+              <div className="flex items-start gap-3">
+                <Clock className="h-4 w-4 text-brand-purple shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">My Timeline — Coming Soon</p>
+                  <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                    Timeline entries and verified activity milestones are not yet being recorded for your account. This space will automatically showcase verified volunteer events, project leadership, and community service achievements once tracking is enabled.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-3 px-1">
+                Sample Preview Entries (Illustrative Design Reference)
+              </p>
+              <div className="relative space-y-6 border-l border-border/60 pl-6 opacity-75">
+                {SAMPLE_TIMELINE_EXAMPLES.map((t, i) => {
+                  const Icon = t.icon;
+                  return (
+                    <div key={i} className="relative">
+                      <span className="absolute -left-[34px] grid h-7 w-7 place-items-center rounded-full bg-surface-2 border border-border/80 text-muted-foreground shadow-sm">
+                        <Icon className="h-3.5 w-3.5 text-brand-teal" />
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <p className="font-display text-sm font-semibold text-foreground">{t.title}</p>
+                        <span className="text-[9px] uppercase tracking-wider rounded bg-surface px-1.5 py-0.5 text-muted-foreground border border-border/60">
+                          Sample
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t.org} · {t.date}</p>
+                      <p className="mt-1 text-xs text-muted-foreground/90">{t.body}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </section>
         </div>

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as ConnectionsRouteImport } from './routes/connections'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as GroupsRouteImport } from './routes/groups'
@@ -18,6 +19,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MainRouteImport } from './routes/main'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MyGroupsRouteImport } from './routes/my-groups'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -32,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectionsRoute = ConnectionsRouteImport.update({
+  id: '/connections',
+  path: '/connections',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeaturesRoute = FeaturesRouteImport.update({
@@ -69,6 +76,11 @@ const MessagesRoute = MessagesRouteImport.update({
   path: '/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MyGroupsRoute = MyGroupsRouteImport.update({
+  id: '/my-groups',
+  path: '/my-groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -98,6 +110,7 @@ const ShareUsernameRoute = ShareUsernameRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/connections': typeof ConnectionsRoute
   '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/groups': typeof GroupsRoute
@@ -105,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/main': typeof MainRoute
   '/map': typeof MapRoute
   '/messages': typeof MessagesRoute
+  '/my-groups': typeof MyGroupsRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -114,6 +128,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/connections': typeof ConnectionsRoute
   '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/groups': typeof GroupsRoute
@@ -121,6 +136,7 @@ export interface FileRoutesByTo {
   '/main': typeof MainRoute
   '/map': typeof MapRoute
   '/messages': typeof MessagesRoute
+  '/my-groups': typeof MyGroupsRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -131,6 +147,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/connections': typeof ConnectionsRoute
   '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/groups': typeof GroupsRoute
@@ -138,6 +155,7 @@ export interface FileRoutesById {
   '/main': typeof MainRoute
   '/map': typeof MapRoute
   '/messages': typeof MessagesRoute
+  '/my-groups': typeof MyGroupsRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -149,6 +167,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/connections'
     | '/features'
     | '/forgot-password'
     | '/groups'
@@ -156,6 +175,7 @@ export interface FileRouteTypes {
     | '/main'
     | '/map'
     | '/messages'
+    | '/my-groups'
     | '/onboarding'
     | '/profile'
     | '/reset-password'
@@ -165,6 +185,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/connections'
     | '/features'
     | '/forgot-password'
     | '/groups'
@@ -172,6 +193,7 @@ export interface FileRouteTypes {
     | '/main'
     | '/map'
     | '/messages'
+    | '/my-groups'
     | '/onboarding'
     | '/profile'
     | '/reset-password'
@@ -181,6 +203,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
+    | '/connections'
     | '/features'
     | '/forgot-password'
     | '/groups'
@@ -188,6 +211,7 @@ export interface FileRouteTypes {
     | '/main'
     | '/map'
     | '/messages'
+    | '/my-groups'
     | '/onboarding'
     | '/profile'
     | '/reset-password'
@@ -198,6 +222,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  ConnectionsRoute: typeof ConnectionsRoute
   FeaturesRoute: typeof FeaturesRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   GroupsRoute: typeof GroupsRoute
@@ -205,6 +230,7 @@ export interface RootRouteChildren {
   MainRoute: typeof MainRoute
   MapRoute: typeof MapRoute
   MessagesRoute: typeof MessagesRoute
+  MyGroupsRoute: typeof MyGroupsRoute
   OnboardingRoute: typeof OnboardingRoute
   ProfileRoute: typeof ProfileRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -226,6 +252,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connections': {
+      id: '/connections'
+      path: '/connections'
+      fullPath: '/connections'
+      preLoaderRoute: typeof ConnectionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/features': {
@@ -277,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/my-groups': {
+      id: '/my-groups'
+      path: '/my-groups'
+      fullPath: '/my-groups'
+      preLoaderRoute: typeof MyGroupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -318,6 +358,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  ConnectionsRoute: ConnectionsRoute,
   FeaturesRoute: FeaturesRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   GroupsRoute: GroupsRoute,
@@ -325,6 +366,7 @@ const rootRouteChildren: RootRouteChildren = {
   MainRoute: MainRoute,
   MapRoute: MapRoute,
   MessagesRoute: MessagesRoute,
+  MyGroupsRoute: MyGroupsRoute,
   OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
   ResetPasswordRoute: ResetPasswordRoute,
