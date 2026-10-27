@@ -78,16 +78,29 @@ export function MyGroupsPage() {
 
       if (gErr) throw gErr;
 
-      // 3. Count total members for each group
-      const { data: allMemberships, error: countErr } = await supabase
-        .from("group_memberships")
-        .select("group_id");
-
+      // 3. Count total members for each group securely
       const counts: Record<string, number> = {};
-      if (!countErr && allMemberships) {
-        for (const row of allMemberships) {
-          counts[row.group_id] = (counts[row.group_id] || 0) + 1;
+      try {
+        const { data: rpcCounts, error: rpcErr } = await supabase.rpc("get_group_member_counts");
+        if (!rpcErr && Array.isArray(rpcCounts)) {
+          for (const row of rpcCounts as { group_id: string; member_count: number | string }[]) {
+            if (row.group_id) {
+              counts[row.group_id] = Number(row.member_count) || 0;
+            }
+          }
+        } else {
+          const { data: allMemberships } = await supabase
+            .from("group_memberships")
+            .select("group_id");
+
+          if (allMemberships) {
+            for (const row of allMemberships as { group_id: string }[]) {
+              counts[row.group_id] = (counts[row.group_id] || 0) + 1;
+            }
+          }
         }
+      } catch {
+        // Fallback gracefully
       }
 
       // Map joined groups list
